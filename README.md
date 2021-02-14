@@ -41,36 +41,26 @@ Request是指定参数的集合操作的抽象，支持初始化一次、执行�
 * Group:Request = 1:N
 
 ## 对内
-### Planners
-对上（Context）提供查询和释放Planner的功能，对下（Planner组件）提供注册Planner的功能，内部隐藏Planner初始化过程、实例化方式和个数等信息。单实例
-* Context:Planners = N:1
-
-### Plans
-对上（Request）提供Plan选择的功能，内部隐藏从Planner（或Plan Cache）查询Plan，并从查询结果中选择最佳Plan并初始化（若来自Plan Cache则无需再次初始化）的过程。单实例
+### Plan Pool
+所有Plan会注册到Plan Pool中，对外提供Plan选择功能。单实例
 * Request:Plans = N:1
 
 ### Channel
-提供dst-id收发数据、注册Planner am handler的功能，内部隐藏调用UCP创建EP、调用UCT收发数据的实现、链路复用、Planner am handler未注册的处理等等。
-> 新增group am handler，在进程启动时就加入UCP预定义的am handler数组中
+提供dst-id收发数据、注册am handler的功能，内部隐藏调用UCP创建EP、调用UCT收发数据的实现、链路复用、am handler未注册的处理等等。
 
 ### Topology
 对上（Plan）提供查询进程间距离的功能，内部隐藏拓扑的管理结构。单实例
 
-### Planner
-对上注册成为Planners中的一员，对下（Plan）提供注册Plan的功能。
-
 ### Plan
-算法生成的针对集合操作的通讯树，规定通讯步骤、每个步骤的通讯方向和数据大小。提供初始化Request的功能（仅初始化与Plan相关的特定部分）
-> 不同参数的集合操作可能对应同一个Plan，但必然对应不同的Request。
+算法生成的针对集合操作的通讯树，规定通讯步骤、每个步骤的通讯方向和数据大小。
 
 ## 抽象关系
 ### 从下到上
-1. 由特定算法生成Plan，Plan注册到Planner中
-2. Planner加入Planners成为其中一员
+1. 由特定算法生成Plan，Plan注册到Plan Pool中
 
 ### 从上到下
 1. 初始化RTE：保存外部指定的MPI特定函数和常量（常量也可通过函数方式获取）、全局拓扑信息
-2. 创建Context：根据外部配置的Planner Name（默认为ALL）从Planners中获取Planner实例
+2. 创建Context：保存外部配置的Plan Name（默认为ALL）
 3. 创建Group
-3. 创建Request：传入Group->Context->Planner到Plans选择最佳的Plan，由Plan实例化一个Request
-4. 执行Request
+3. 创建Request：根据Plan Name到Plan Pool中选择最佳的Plan，指定Request按该Plan执行
+4. 执行Request：Request按照Plan规定的Action依次执行，并记录当前执行步骤。
