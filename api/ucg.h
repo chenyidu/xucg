@@ -13,8 +13,13 @@
  */
 typedef enum ucg_rte_type {
     UCG_RTE_TYPE_MPI,
-    UCG_RTE_TYPE_INVALID,
+    UCG_RTE_TYPE_LAST,
 } ucg_rte_type_t;
+
+typedef enum ucg_group_params_field {
+    UCG_GROUP_PARAMS_UCP_WORKER = UCS_BIT(0),
+    UCG_GROUP_PARAMS_GROUP = UCS_BIT(1),
+} ucg_group_params_field_t;
 
 /**
  * @ingroup UCG_RTE
@@ -28,19 +33,51 @@ typedef struct ucg_rte_params {
 } ucg_rte_params_t;
 
 /**
+ * @ingroup UCG_CONTEXT
+ * @brief Creation parameters for the UCG context.
+ */
+typedef struct ucg_context_params {
+    uint64_t field_mask;
+} ucg_context_params_t;
+
+/**
+ * @ingroup UCG_GROUP
+ * @brief Creation parameters for the UCG group.
+ */
+typedef struct ucg_group_params {
+    /**
+     * Mask of valid fields in this structure, using bits from @ref ucg_group_params_field.
+     * Fields not specified in this mask will be ignored.
+     * Provides ABI compatibility with respect to adding new fields.
+     */
+    uint64_t field_mask;
+    
+    /* Specified worker */
+    ucp_worker_h ucp_worker;
+    
+    struct {
+        int count; /* Number of element in the handles */
+        void *handles; /* Array of user-defined process handle */
+    } group;
+} ucg_group_params_t;
+
+/**
  * @ingroup UCG_RTE
- * @brief UCG Runtime Enviroment initialization.
+ * @brief UCG runtime enviroment initialization.
  */
 ucs_status_t ucg_rte_init(ucg_rte_params_t *params);
 
-typedef enum ucg_dt_type_id {
-    UCG_DT_UINT32,
-    UCG_DT_MPI,
-    UCG_DT_MAX,
-} ucg_dt_type_t;
+/**
+ * @ingroup UCG_CONTEXT
+ * @brief UCG context initialization.
+ */
+ucs_status_t ucg_context_init(const ucg_context_params_t *params, 
+                              const ucg_context_config_t *config,
+                              ucg_context_h *context_p);
+/**
+ * @ingroup UCG_CONTEXT
+ * @brief Release UCG application context.
+ */
+void ucg_context_cleanup(ucg_context_h context_p);
 
-typedef struct ucg_datatype {
-    ucg_dt_type_t id;
-    void *dt_ptr;
-} ucg_datatype_t;
 #endif
