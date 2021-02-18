@@ -5,6 +5,8 @@
 #ifndef UCG_RTE_MPI_H_
 #define UCG_RTE_MPI_H_
 
+#include <ucg/api/ucg_def.h>
+
 /**
  * @ingroup UCG_RTE_MPI
  * @brief Get MPI world rank.
