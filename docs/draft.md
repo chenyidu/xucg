@@ -36,8 +36,8 @@
 目录结构与UCX其他组件的风格尽量保持一致，如api、core、base。
 - UCX所有组件都使用api目录
 - UCP使用了core目录，
-- UCT使用了base目录：UCT组件的架构是所有特例化的TL都依赖于底层的更为通用的TL，这些通用的TL实现所在目录就是base，在UCG中base目录也是用来存放core和plans依赖的功能实现。
-- plans目录为UCG特有抽目录
+- UCT使用了base目录：UCT组件的架构是所有特化的TL都依赖于底层的更为通用的TL，这些通用的TL实现所在目录就是base，在UCG中base目录也是用来存放core和plans依赖的功能实现。
+- plans目录为UCG特有的目录，用于保存集合操作算法和其生成的Plan
 
 # 抽象的简单定义
 ## 对外
