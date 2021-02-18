@@ -141,7 +141,7 @@ typedef void (*ucg_mpi_dt_finish_cb_t)(void *state);
 typedef struct ucg_rte_mpi {
     ucg_mpi_world_rank_cb_t world_rank;
     ucg_mpi_get_distance_cb_t get_distance;
- 
+        
     struct {
         ucg_mpi_op_reduce_cb_t reduce;
         ucg_mpi_op_is_commute_cb_t is_commute;
