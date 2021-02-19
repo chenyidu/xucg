@@ -39,7 +39,7 @@
 - UCT使用了base目录：UCT组件的架构是所有特化的TL都依赖于底层的更为通用的TL，这些通用的TL实现所在目录就是base，在UCG中base目录也是用来存放core和plans依赖的功能实现。
 - plans目录为UCG特有的目录，用于保存集合操作算法和其生成的Plan
 
-# 抽象的简单定义
+# 抽象概念
 ## 对外
 ### RTE
 RTE（runtime environment）是UCG运行依赖的外部信息的抽象，以运行于MPI环境为例，包含MPI的特定函数、MPI的特定常量等。因为这些信息只需要初始化一次，所以专门定义一个抽象用来描述这些信息。
@@ -53,6 +53,7 @@ Context是集合操作的执行资源的抽象。不同Context可以指定不同
 ### Group
 Group是通信组的抽象，集合操作在Group内执行，集合操作可使用的资源由Group依托的Context决定。
 - Context:Group = 1:N
+> 以handle代表group成员，handle类型为uint64_t，由User指定，需保证全局（跨group）唯一。
 
 ### Request
 Request是集合操作的抽象，支持初始化一次、执行多次
@@ -88,11 +89,18 @@ Action是Plan中通讯步骤的抽象，集合操作执行框架从Plan中依次
 3. 创建Request：根据可用的Plan Name到Plan Pool中选择最佳的Plan并实例化，指定Request按该Plan执行
 4. 执行Request：框架执行Action并返回下一个Action，Request记录Plan的下一个Action，直到Action为UCG_LAST_ACTION时，标记Request状态为完成。
 
-# 附录
-围绕以下几个问题的思考
-1. 设计中是否已经没有可以减少的部分？
-2. 抽象之间的交互是否考虑清晰？
-3. 每个抽象的功能是否定义清晰？
+# 设计细节
+## Group成员标识
+约定以handle作为Group成员标识，且handle为全局唯一。同一成员可以属于不同Group，全局唯一的意思是该成员在不同Group中使用同一个handle（若运行环境为MPI，那么handle就是MPI_COMM_WORLD中可以唯一标识进程的值，设想中使用`ompi_proc_t*`)。
+
+## 集合操作
+创建集合操作的request时，若需要传入进程标识，则传入该进程在handles数组中的position。
+内部生成Plan时，也使用`[0, number_of_member)`即handles数组的有效下标进行计算。但是当得到对端的下标后，需要从数组中取出handle保存在Action中。
+
+## datatype & op
+datatype和op分为预定义和用户自定义两类，其中内部预定义可以细分为多种类型。
+提供统一的接口，内部隐藏预定义类型和用户自定义类型的处理，对于用户自定义的类型调用用户注册的RTE函数。
+
 
 ## Planner是否有存在的必要？—— 否
 不同Planner包含着不同的Plan，一旦划分Planner，那么一个Planner中的Plan依赖于另一个Planner里的Plan是相当违反直觉的，但实际中一个新算法会依赖原先的一些基础算法，而基础算法通常都位于builtin Planner。因此就有了这个问题。
