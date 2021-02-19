@@ -52,14 +52,14 @@ typedef struct ucg_group_params {
      */
     uint64_t field_mask;
     
-    /* Specified worker */
+    /* Specified worker, cannot release until the group is destroyed */
     ucp_worker_h ucp_worker;
     
     struct {
         int count; /* Number of element in the handles */
         uint64_t *handles; /* Array of user-defined process handle */
-        int pos; /* My position in the handles array */
-    } group;
+        int my_pos; /* My position in the handles array */
+    } members;
 } ucg_group_params_t;
 
 /**
@@ -249,14 +249,14 @@ ucs_status_t ucg_request_allreduce_init(ucg_group_h group,
  * @param [in] buffer Starting address of buffer.
  * @param [in] count Number of elements in buffer.
  * @param [in] dtype Data type of buffer.
- * @param [in] root Handle of bcast root.
+ * @param [in] root Position of root handle in handles(ucg_group_params_t::members::handles).
  * @param [out] request Request.
  */
 ucs_status_t ucg_request_bcast_init(ucg_group_h group,
                                     void *buffer, 
                                     int count, 
                                     ucg_datatype_t *dtype, 
-                                    uint64_t root,
+                                    int root,
                                     ucg_request_h *request);
 
 /**
