@@ -93,30 +93,22 @@ Action是Plan中通讯步骤的抽象，集合操作执行框架从Plan中依次
 ## Group成员标识
 约定以handle作为Group成员标识，且handle为全局唯一。同一成员可以属于不同Group，全局唯一的意思是该成员在不同Group中使用同一个handle（若运行环境为MPI，那么handle就是MPI_COMM_WORLD中可以唯一标识进程的值，设想中使用`ompi_proc_t*`)。
 
-## 集合操作
-创建集合操作的request时，若需要传入进程标识，则传入该进程在handles数组中的position。
-内部生成Plan时，也使用`[0, number_of_member)`即handles数组的有效下标进行计算。但是当得到对端的下标后，需要从数组中取出handle保存在Action中。
+- Plan的Action中保存handle作为sendto/recvfrom的对象
+- Channel根据handle获取其地址，创建连接
+- Topology计算两个handle之间的距离，将handle按照拓扑距离分组（比如节点内为一组）
 
-## datatype & op
-datatype和op分为预定义和用户自定义两类，其中内部预定义可以细分为多种类型。
-提供统一的接口，内部隐藏预定义类型和用户自定义类型的处理，对于用户自定义的类型调用用户注册的RTE函数。
+## Plan
+### 选择
+Plan需要提供一个函数如`is_available()`给Plan Pool，用来判断Plan是否支持特定的集合操作。
+- `is_available()`不止判断集合操作的参数、成员个数，还需要判断依赖的环境是否就绪，比如Topology不可用时，topo-aware的Plan不能使用
 
+当Plan可用时，Plan Pool还需选择最佳Plan。直观的想法是模拟运行Plan.
 
-## Planner是否有存在的必要？—— 否
-不同Planner包含着不同的Plan，一旦划分Planner，那么一个Planner中的Plan依赖于另一个Planner里的Plan是相当违反直觉的，但实际中一个新算法会依赖原先的一些基础算法，而基础算法通常都位于builtin Planner。因此就有了这个问题。
+### Member标识
+生成Plan时，使用`[0, number_of_member)`即handles数组的有效下标进行计算。当得到对端的下标后，需要从数组中取出handle保存在Action中。
+> 创建集合操作的request时，若需传入进程标识（如bcast），则传入该进程在handles数组中的position。若传入handle，则内部需要遍历handles数组才能得到Plan所需的root position.
 
-从用户角度看
-1. 因为用户的诉求是在所有可用的Plan中选择最佳的Plan，所以让用户指定Planner是没有意义的，用户必然指定ALL。
-
-从实现角度看
-1. 原先Planner还包含了收发流程，如果不同Planner包含不同的收发流程，那么确实有必要存在Planner。但现在会将收发流程提炼出来，因此Planner将只包含Plan，就没有必要存在不同的Planner。
-2. Plan之间本身就是隔离的，用不同的Planner包含不同的Plan，没什么意义。
-3. 目前Planner的注册方式是通过UCS FRAMEWORK LOAD，支持动态加载，因此可将以二进制形式提供的Plan放在一个Planner中动态加载。这可以通过别的方式来实现而无需添加新的抽象，比如源码形式提供的Plan统一编译到libucg.so中，二进制形式提供的Plan可编译为libucg_ext.so，直接作为一个MODULE进行加载。
-
-## Plan是否需要感知到Request？—— 否
-Request可以通过Plan提供的接口去执行Plan，并将执行状态记录在Request中，因此Plan无需感知Request。Plan并不需要直接操作Request，并在其中记录特定的信息。
-
-## Plan复用
+### 复用：Copy On Write
 在定义上，一个实例化的Plan是包含集合操作所有信息的，比如通讯对象、通讯数据。复用Plan实际就是复用Plan Action。Plan Action中的通讯对象只受算法影响的，通讯数据则受算法和集合操作本身的数据共同影响。在一个Group内的集合操作的通讯成员是固定的，也就是说同一算法的Plan Action的通讯对象是固定的，可以直接复用。通讯数据会变化，但确定每个Action通讯数据的算法是固定的。
 ```
 Action
@@ -147,3 +139,23 @@ Action
 ```
 
 Group间的Plan复用可能性较低，不在考虑范围内。
+
+## datatype & op
+datatype和op分为预定义和用户自定义两类，其中内部预定义可以细分为多种类型。
+提供统一的接口，内部隐藏预定义类型和用户自定义类型的处理，对于用户自定义的类型调用用户注册的RTE函数。
+
+## Planner是否有存在的必要？—— 否
+不同Planner包含着不同的Plan，一旦划分Planner，那么一个Planner中的Plan依赖于另一个Planner里的Plan是相当违反直觉的，但实际中一个新算法会依赖原先的一些基础算法，而基础算法通常都位于builtin Planner。因此就有了这个问题。
+
+从用户角度看
+1. 因为用户的诉求是在所有可用的Plan中选择最佳的Plan，所以让用户指定Planner是没有意义的，用户必然指定ALL。
+
+从实现角度看
+1. 原先Planner还包含了收发流程，如果不同Planner包含不同的收发流程，那么确实有必要存在Planner。但现在会将收发流程提炼出来，因此Planner将只包含Plan，就没有必要存在不同的Planner。
+2. Plan之间本身就是隔离的，用不同的Planner包含不同的Plan，没什么意义。
+3. 目前Planner的注册方式是通过UCS FRAMEWORK LOAD，支持动态加载，因此可将以二进制形式提供的Plan放在一个Planner中动态加载。这可以通过别的方式来实现而无需添加新的抽象，比如源码形式提供的Plan统一编译到libucg.so中，二进制形式提供的Plan可编译为libucg_ext.so，直接作为一个MODULE进行加载。
+
+## Plan是否需要感知到Request？—— 否
+Request可以通过Plan提供的接口去执行Plan，并将执行状态记录在Request中，因此Plan无需感知Request。Plan并不需要直接操作Request，并在其中记录特定的信息。
+
+
