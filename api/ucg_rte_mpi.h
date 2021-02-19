@@ -6,7 +6,7 @@
 #define UCG_RTE_MPI_H_
 
 #include <ucg/api/ucg_def.h>
-#include <ucs/sys/compiler_def.h>
+#include <ucp/api/ucp_def.h>
 
 /**
  * @ingroup UCG_RTE_MPI
