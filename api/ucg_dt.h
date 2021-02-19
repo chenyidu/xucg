@@ -11,16 +11,30 @@
  * @brief datatype type
  */
 typedef enum ucg_dt_type_id {
-    UCG_DT_UINT32,
-    UCG_DT_MPI,
-    UCG_DT_MAX,
+    UCG_DT_UINT32, 
+    UCG_DT_MAX_PREDEFINED, 
+ 
+    UCG_DT_USER_DEFINED, 
 } ucg_dt_type_t;
+
+typedef enum ucg_dt_op_type_id {
+    UCG_DT_OP_SUM,
+    UCG_DT_OP_MAX_PREDEFINED,
+ 
+    UCG_DT_OP_USER_DEFINED, 
+} ucg_dt_op_type_id_t;
 
 typedef struct ucg_datatype {
     ucg_dt_type_t id;
     void *dt_ptr;
 } ucg_datatype_t;
 
+typedef struct ucg_op {
+    ucg_dt_op_type_t id;
+    void *op_ptr;
+} ucg_op_t;
+
 extern ucg_datatype_t ucg_dt_uint32;
+extern ucg_op_t ucg_dt_op_sum;
 
 #endif
