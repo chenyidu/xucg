@@ -57,7 +57,8 @@ typedef struct ucg_group_params {
     
     struct {
         int count; /* Number of element in the handles */
-        void *handles; /* Array of user-defined process handle */
+        uint64_t *handles; /* Array of user-defined process handle */
+        int offset; /* My offset position in the handles array */
     } group;
 } ucg_group_params_t;
 
