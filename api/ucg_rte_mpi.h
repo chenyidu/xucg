@@ -194,8 +194,8 @@ typedef struct ucg_rte_mpi {
     } op;
  
     struct {
-        ucg_mpi_addr_lookup_cb_t lookup;
-        ucg_mpi_addr_release_cb_t release;
+        ucg_mpi_addr_get_cb_t get;
+        ucg_mpi_addr_put_cb_t put;
     } address;
  
     struct {
