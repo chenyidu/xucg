@@ -238,7 +238,7 @@ ucs_status_t ucg_request_allreduce_init(ucg_group_h group,
                                         int count, 
                                         ucg_datatype_t *dtype, 
                                         ucg_op_t *op, 
-                                        ucg_request_t **request);
+                                        ucg_request_h *request);
 
 /**
  * @ingroup UCG_REQUEST
@@ -250,19 +250,20 @@ ucs_status_t ucg_request_allreduce_init(ucg_group_h group,
  * @param [in] count Number of elements in buffer.
  * @param [in] dtype Data type of buffer.
  * @param [in] root Handle of bcast root.
+ * @param [out] request Request.
  */
 ucs_status_t ucg_request_bcast_init(ucg_group_h group,
                                     void *buffer, 
                                     int count, 
                                     ucg_datatype_t *dtype, 
                                     uint64_t root,
-                                    ucg_request_t **request);
+                                    ucg_request_h *request);
 
 /**
  * @ingroup UCG_REQUEST
  * @brief Start a initialized request.
  */
-ucs_status_t ucg_request_start(ucg_request_t *request);
+ucs_status_t ucg_request_start(ucg_request_h request);
 
 /**
  * @ingroup UCG_REQUEST
@@ -270,7 +271,7 @@ ucs_status_t ucg_request_start(ucg_request_t *request);
  *
  * @return Non-zero if any communication was progressed, zero otherwise.
  */
-int ucg_request_progress(ucg_request_t *request);
+int ucg_request_progress(ucg_request_h request);
 
 /**
  * @ingroup UCG_REQUEST
@@ -280,18 +281,18 @@ int ucg_request_progress(ucg_request_t *request);
  * Any value different from UCS_INPROGRESS means that request is in a completed
  * state.
  */
-ucs_status_t ucg_request_check_status(ucg_request_t *request);
+ucs_status_t ucg_request_check_status(ucg_request_h request);
 
 /**
  * @ingroup UCG_REQUEST
  * @brief Cancel the request.
  */
-ucs_status_t ucg_request_cancel(ucg_request_t *request);
+ucs_status_t ucg_request_cancel(ucg_request_h request);
 
 /**
  * @ingroup UCG_REQUEST
  * @brief Free the request.
  */
-ucs_status_t ucg_request_free(ucg_request_t *request);
+ucs_status_t ucg_request_free(ucg_request_h request);
 
 #endif
