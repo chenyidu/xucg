@@ -11,46 +11,87 @@
  * @ingroup UCG_RTE_MPI
  * @brief Get MPI world rank.
  *
- * @param [in] handle process handle.
+ * @param [in] handle MPI process handle.
  * @return MPI world rank.
  */
 typedef int (*ucg_mpi_world_rank_cb_t)(void *handle);
 
 /**
  * @ingroup UCG_RTE_MPI
- * @brief Get distance between world_rank1 and world_rank2.
+ * @brief Get locations of all MPI processes.
+ *
+ * @param [out] locations Pointer to locations information.
+ * @param [out] size Size of one location
+ * @param [out] count Number of locations
+ * @return 0-Success, Other-Fail.
  */
-typedef ucg_distance_t (*ucg_mpi_get_distance_cb_t)(int world_rank1, int world_rank2);
+typedef int (*ucg_mpi_locations_get_cb_t)(void **locations, int *size, int *count);
+
+/**
+ * @ingroup UCG_RTE_MPI
+ * @brief Put back the pointer of all MPI processes's locations.
+ *
+ * @param [in] locations Pointer to locations information.
+ */
+typedef void (*ucg_mpi_locations_put_cb_t)(void *locations);
+
+/**
+ * @ingroup UCG_RTE_MPI
+ * @brief Get distance between world_rank1 and world_rank2.
+ *
+ * @param [in] locations Pointer to locations information.
+ * @param [in] size Size of each location.
+ * @param [in] count Number of locations.
+ * @param [in] world_rank1 MPI process world rank.
+ * @param [in] world_rank2 MPI process world rank.
+ * @return The distance between world_rank1 and world_rank2.
+ */
+typedef ucg_distance_t (*ucg_mpi_locations_distance_cb_t)(void *locations, 
+                                                          int size,
+                                                          int count,
+                                                          int world_rank1, 
+                                                          int world_rank2);
 
 /**
  * @ingroup UCG_RTE_MPI
  * @brief Perform a reduction operation.
  *
  * @param [in] op MPI reduction operation.
- * @param [in] source buffer
- * @param [inout] target buffer
- * @param [in] count Number of elements
- * @param [in] dtype MPI datatype
+ * @param [in] source Source buffer.
+ * @param [inout] target Target buffer.
+ * @param [in] count Number of elements.
+ * @param [in] dtype MPI datatype.
+ * @return 0-Success, Other-Fail.
  */
 typedef int (*ucg_mpi_op_reduce_cb_t)(void *op, void *source, void *target, int count, void *dtype);
 
 /**
  * @ingroup UCG_RTE_MPI
  * @brief Check whether an operation is communative or not.
+ *
+ * @param [in] op Operation.
+ * @return 1-Op is communative, 0-Op is not communative
  */
 typedef int (*ucg_mpi_op_is_commute_cb_t)(void *op);
 
 /**
  * @ingroup UCG_RTE_MPI
  * @brief Lookup address by world rank.
+ *
+ * @param [in] handle MPI process handle.
+ * @param [out] addr Address of the handle.
+ * @papram [out] addr_len Address length.
+ * @return 0-Success, Other-Fail.
  */
-typedef int (*ucg_mpi_addr_lookup_cb_t)(int world_rank, ucp_address_t **addr, size_t *addr_len);
+typedef int (*ucg_mpi_addr_get_cb_t)(void *handle, ucp_address_t **addr, size_t *addr_len);
 
 /**
  * @ingroup UCG_RTE_MPI
- * @brief Release address returned by loopup().
+ * @brief Release address pointer.
+ *
+ * @param [in] addr Address obtained through ucg_mpi_addr_get_cb.
  */
-typedef void (*ucg_mpi_addr_release_cb_t)(ucp_address_t *addr);
+typedef void (*ucg_mpi_addr_put_cb_t)(ucp_address_t *addr);
 
 /**
  * @ingroup UCG_RTE_MPI
@@ -65,8 +106,8 @@ typedef int (*ucg_mpi_dt_is_contig_cb_t)(void *dtype);
  * @ingroup UCG_RTE_MPI
  * @brief Start a packing request.
  *
- * @param [in] ldtype left-hand MPI datatype.
- * @param [in] rdtype right-hand MPI datatype.
+ * @param [in] ldtype Left-hand MPI datatype.
+ * @param [in] rdtype Right-hand MPI datatype.
  * @return 0 non-contig, 1 contig
  */
 typedef int (*ucg_mpi_dt_is_same_cb_t)(void *ldtype, void *rdtype);
@@ -140,7 +181,12 @@ typedef void (*ucg_mpi_dt_finish_cb_t)(void *state);
  */
 typedef struct ucg_rte_mpi {
     ucg_mpi_world_rank_cb_t world_rank;
-    ucg_mpi_get_distance_cb_t get_distance;
+    
+    struct {
+        ucg_mpi_locations_get_cb_t get;
+        ucg_mpi_locations_put_cb_t put;
+        ucg_mpi_locations_distance_cb_t distance;
+    } locations;
         
     struct {
         ucg_mpi_op_reduce_cb_t reduce;
