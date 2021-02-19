@@ -6,6 +6,7 @@
 #define UCG_RTE_MPI_H_
 
 #include <ucg/api/ucg_def.h>
+#include <ucs/sys/compiler_def.h>
 
 /**
  * @ingroup UCG_RTE_MPI
@@ -178,6 +179,9 @@ typedef void (*ucg_mpi_dt_finish_cb_t)(void *state);
 /**
  * @ingroup UCG_RTE_MPI
  * @brief UCG MPI Runtime Enviroment.
+ *
+ * @note It is very likely that fields are added to the substructure.
+ *       It's hard to provide ABI compatibility.
  */
 typedef struct ucg_rte_mpi {
     ucg_mpi_world_rank_cb_t world_rank;
