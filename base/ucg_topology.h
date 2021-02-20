@@ -5,16 +5,28 @@
  
 #ifndef UCG_TOPOLOGY_H_
 #define UCG_TOPOLOGY_H_
- 
+
+typedef ucg_topo_group {
+    ucg_distance_t distance; /* The distance between every two members is less than this value. */
+    int count; /* Number of elements in handles */
+    uint64_t *handles; /* Global member handle */
+} ucg_topo_group_t;
+
+/**
+ * @ingroup UCG_TOPOLOGY
+ * @brief Initilize global topology instance.
+ */
+ucs_status_t ucg_topo_init();
+
 /**
  * @ingroup UCG_TOPOLOGY
  * @brief Get distance between two members.
  *
  * @param [in] group UCG group object
- * @param [in] member_id1 Position of member in the array of group handles.
- * @param [in] member_id2 Position of member in the array of group handles.
+ * @param [in] handle1 Global member handle.
+ * @param [in] handle2 Global member handle.
  */
-ucs_status_t ucg_topo_get_distance(ucg_group_h group, int member_id1, int member_id2);
+ucs_status_t ucg_topo_get_distance(uint64_t handle1, uint64_t handle2);
 
 /**
  * @ingroup UCG_TOPOLOGY
@@ -22,10 +34,10 @@ ucs_status_t ucg_topo_get_distance(ucg_group_h group, int member_id1, int member
  *
  * @param [in] group UCG group object.
  * @param [in] distance Members less than this distance are grouped into one group.
- * @param [out] subgroups 
- * @param [out] count Number of elements in subgroups.
+ * @param [out] topo_group 
+ * @param [out] count Number of elements in topo_group.
  * @note Terminator of subgroup array is UCG_HANDLE_MAX.
  */
-ucs_status_t ucg_topo_group_by_distance(ucg_group_h group, ucg_distance_t distance, uint64_t **subgroups, int *count);
+ucs_status_t ucg_topo_group_by_distance(ucg_group_h group, ucg_distance_t distance, ucg_topo_group_t *topo_group, int *count);
 
 #endif
