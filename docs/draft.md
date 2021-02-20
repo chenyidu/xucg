@@ -107,16 +107,11 @@ Action是Plan中通讯步骤的抽象，集合操作执行框架从Plan中依次
 
 # 设计细节
 ## Group成员标识
-对外约定以handle作为Group成员标识，要求外部提供的handle为全局唯一，全局唯一的意思是该成员在不同Group中使用同一个handle（若运行环境为MPI，那么handle就是MPI_COMM_WORLD中可以唯一标识进程的值，设想中使用`ompi_proc_t*`)。
+约定以handle作为Group成员标识，要求外部提供的handle为全局唯一，全局唯一的意思是该成员在不同Group中使用同一个handle（若运行环境为MPI，那么handle就是MPI_COMM_WORLD中可以唯一标识进程的值，设想中使用`ompi_proc_t*`)。
 
-- ~~Plan的Action中保存handle作为sendto/recvfrom的对象~~ 
-- ~~Channel根据handle通过RTE函数获取其地址，创建连接~~
-- ~~Topology计算两个handle之间的距离，将handle按照拓扑距离分组（比如节点内为一组）
-
-为了跨Group复用Plan，Action中保存handle下标，因此删除以上内容，修改为
-- Channel支持传入handle下标，内部从handles中获取handle，并通过RTE函数获取地址，创建连接
-- Topology支持传入两个handle下标，并计算距离
-约定所有内部组件约定以handles下标为member id。当然同时需要传入UCG group对象，以便可以获取到实际的handle。
+- Plan的Action中保存handle作为sendto/recvfrom的对象
+- Channel根据handle通过RTE函数获取其地址，创建连接
+- Topology计算两个handle之间的距离，将handle按照拓扑距离分组（比如节点内为一组）
 
 ## Plan
 ### 选择
@@ -169,8 +164,7 @@ Action
     data: NULL  初始为NULL，通过data function计算得到
 }
 ```
-理论来说，当两个Group的member个数是一样时，是可以复用Plan的，当然该Plan必须非topo-aware即不依赖handle的位置。这么看的话，Action保存对端的handles下标才行，当真正执行Action时再找到对应的handle。
-
+理论来说，当两个Group的member个数是一样时，是可以复用Plan的，当然该Plan必须非topo-aware即不依赖handle的位置。这么看的话，Action还应当保存对端的handles下标，执行Plan Clone时，当填写成实际的handle。
 
 ## datatype & op
 datatype和op分为预定义和用户自定义两类，其中内部预定义可以细分为多种类型。
