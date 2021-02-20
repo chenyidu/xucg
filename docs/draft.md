@@ -37,7 +37,23 @@
 - UCX所有组件都使用api目录
 - UCP使用了core目录，
 - UCT使用了base目录：UCT组件的架构是所有特化的TL都依赖于底层的更为通用的TL，这些通用的TL实现所在目录就是base，在UCG中base目录也是用来存放core和plans依赖的功能实现。
-- plans目录为UCG特有的目录，用于保存集合操作算法和其生成的Plan
+- plans目录为UCG特有的目录，用于保存集合操作算法和其生成的Plan。
+- - 子目录以算法名命名，同类的优化算法可放在同一目录下，比如recursive_doubling下可以有RD、Topo-Aware RD等。
+
+# 编码风格
+不采用UCX的编码风格，主要是对齐等号、变量等风格。这样的做法会在后续修改时无法直观看到实际的代码修改。
+比如
+```
+a    = 0;
+aaaa = 0;
+```
+新增一行时，前两行都需要重新调整。
+```
+a    ..= 0;
+aaaa ..= 0; 
+aaaaaa = 0;
+```
+后续真的有需要时，通过工具统一刷一遍格式。
 
 # 抽象概念
 ## 对外
@@ -91,25 +107,41 @@ Action是Plan中通讯步骤的抽象，集合操作执行框架从Plan中依次
 
 # 设计细节
 ## Group成员标识
-约定以handle作为Group成员标识，且handle为全局唯一。同一成员可以属于不同Group，全局唯一的意思是该成员在不同Group中使用同一个handle（若运行环境为MPI，那么handle就是MPI_COMM_WORLD中可以唯一标识进程的值，设想中使用`ompi_proc_t*`)。
+对外约定以handle作为Group成员标识，要求外部提供的handle为全局唯一，全局唯一的意思是该成员在不同Group中使用同一个handle（若运行环境为MPI，那么handle就是MPI_COMM_WORLD中可以唯一标识进程的值，设想中使用`ompi_proc_t*`)。
 
-- Plan的Action中保存handle作为sendto/recvfrom的对象
-- Channel根据handle获取其地址，创建连接
-- Topology计算两个handle之间的距离，将handle按照拓扑距离分组（比如节点内为一组）
+- ~~Plan的Action中保存handle作为sendto/recvfrom的对象~~ 
+- ~~Channel根据handle通过RTE函数获取其地址，创建连接~~
+- ~~Topology计算两个handle之间的距离，将handle按照拓扑距离分组（比如节点内为一组）
+
+为了跨Group复用Plan，Action中保存handle下标，因此删除以上内容，修改为
+- Channel支持传入handle下标，内部从handles中获取handle，并通过RTE函数获取地址，创建连接
+- Topology支持传入两个handle下标，并计算距离
+约定所有内部组件约定以handles下标为member id。当然同时需要传入UCG group对象，以便可以获取到实际的handle。
 
 ## Plan
 ### 选择
-Plan需要提供一个函数如`is_available()`给Plan Pool，用来判断Plan是否支持特定的集合操作。
-- `is_available()`不止判断集合操作的参数、成员个数，还需要判断依赖的环境是否就绪，比如Topology不可用时，topo-aware的Plan不能使用
+Plan提供一个函数如`is_available()`给Plan Pool，用来判断Plan是否支持特定的集合操作。
+- `is_available()`不止判断集合操作的参数、成员个数等，还需要判断依赖的环境是否就绪，比如Topology不可用时，topo-aware的Plan不能使用
 
-当Plan可用时，Plan Pool还需选择最佳Plan。直观的想法是模拟运行Plan.
+Plan Pool还需从多个可用的Plan里选择最佳Plan，有几种方案
+1. 直观的想法是给定传输计算开销，模拟运行Plan
+因为每个组成员的Action并不一样，比如broadcast的root只有发送，而其他成员可能有收有发或只有收，所以每个成员不能单纯模拟运行自己的Action，需要模拟运行全局。
+- Plan提供函数Plan::get_actions(group)
+- - 是否存在不同成员的从参数中获取的数据大小是不同的情况？—— 如果存在，那么模拟运行时不能考虑数据大小
+- - 函数内部可以实现cache，只需生成一次。
+- - 单元测试时，可使用该函数检测算法是否正确。
+- 以L1 cache latency为单位，按照经验设置不同distance的latency，模拟执行Action，并考虑Action的并行，得到一个最终的latency
+- 选择latency最小的Plan
+
+2. Plan提供一个基于经验（基于实验室环境的实测值）的overhead，可按数据大小、成员个数提供更细粒度的overheader。不过影响overhead的因素很多，比如成员个数、成员位置、数据大小等，可能在实际环境中并不可信。
+3. 根据成员个数可算出需要的Action个数，选择Action个数少的Plan。
 
 ### Member标识
-生成Plan时，使用`[0, number_of_member)`即handles数组的有效下标进行计算。当得到对端的下标后，需要从数组中取出handle保存在Action中。
-> 创建集合操作的request时，若需传入进程标识（如bcast），则传入该进程在handles数组中的position。若传入handle，则内部需要遍历handles数组才能得到Plan所需的root position.
+算法通常都是根据member id做计算的，因此使用`[0, number_of_member)`即handles数组的有效下标作为member id进行计算。计算完成后，需要从数组中取出对应的handle保存在Action中。
+> 创建集合操作的request时，若需传入进程标识（如bcast），则传入该进程在handles数组中的下标。若传入handle，则内部需要遍历handles数组才能得到Plan所需的root position。User在创建ucg group时指定的`ucg_group_params_t::members::handles`肯定是基于一定算法的，User会比UCG更方便地得到数组下标。
 
-### 复用：Copy On Write
-在定义上，一个实例化的Plan是包含集合操作所有信息的，比如通讯对象、通讯数据。复用Plan实际就是复用Plan Action。Plan Action中的通讯对象只受算法影响的，通讯数据则受算法和集合操作本身的数据共同影响。在一个Group内的集合操作的通讯成员是固定的，也就是说同一算法的Plan Action的通讯对象是固定的，可以直接复用。通讯数据会变化，但确定每个Action通讯数据的算法是固定的。
+### 复用（Copy On Write）
+在定义上，一个实例化的Plan是包含集合操作所有信息的，如通讯对象、通讯数据等。复用Plan实际就是复用Plan Action。Plan Action中的通讯对象只受算法影响的，通讯数据则受算法和集合操作本身的数据共同影响。在一个Group内的集合操作的通讯成员是固定的，也就是说同一算法的Plan Action的通讯对象是固定的，可以直接复用。通讯数据会变化，但确定每个Action通讯数据的算法是固定的。
 ```
 Action
 {
@@ -137,8 +169,8 @@ Action
     data: NULL  初始为NULL，通过data function计算得到
 }
 ```
+理论来说，当两个Group的member个数是一样时，是可以复用Plan的，当然该Plan必须非topo-aware即不依赖handle的位置。这么看的话，Action保存对端的handles下标才行，当真正执行Action时再找到对应的handle。
 
-Group间的Plan复用可能性较低，不在考虑范围内。
 
 ## datatype & op
 datatype和op分为预定义和用户自定义两类，其中内部预定义可以细分为多种类型。
