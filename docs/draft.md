@@ -166,6 +166,57 @@ Action
 ```
 理论来说，当两个Group的member个数是一样时，是可以复用Plan的，当然该Plan必须非topo-aware即不依赖handle的位置。这么看的话，Action还应当保存对端的handles下标，执行Plan Clone时，当填写成实际的handle。
 
+## Action执行框架
+原则：每个Action只完成一类操作。
+
+对于Reduce Action，通常是先Recv再Reduce的，此时Recv Action是无需做真正的内存拷贝的，可以直接使用UCT层的接收buffer进行Reduce Action。还有先Recv再Send的情况即单纯转发，此时可以直接将UCT buffer的内容发送出去。
+```
+do_action(action, data)
+{
+    ...
+}
+
+struct action_buf {
+    uint8_t **buffers;
+};
+1. 先Recv再Reduce
+create actions:
+    recv action:
+        recv.buffers[0] = UCG_BUFFER_HOLE; 
+    reduce action:
+        reduce.buffers[0] = UCG_BUFFER_REPLACE; // 第一个操作数
+        reduce.buffers[1] = target; // 第二个操作数
+
+2. 先Recv再Send
+create actions:
+    recv action:
+        recv.buffers[0] = recv_buffer
+    send action:
+        reduce.buffers[0] = UCG_BUFFER_REPLACE
+
+when recv data:
+    do_action(action, data):
+        switch(action type)
+            SEND:
+                 f send.buffers[0] == UCG_BUFFER_REPLACE
+                    send.buffers[0] = data
+                ucg_channel_send(send.buffer[0])
+                break
+            RECV:
+                if recv.buffers[0] != UCG_BUFFER_HOLE
+                    copy data to recv buffer
+                break
+            REDUCE:
+                if reduce.buffers[0] == UCG_BUFFER_REPLACE
+                    reduce.buffers[0] = data
+                reduce(reduce.buffers[0], reduce.buffers[1])
+            GENETIC:
+                ucg_plan_action_generic(action, data)
+                break
+        if action->next != NULL
+            do_action(action->next, data)
+```
+
 ## datatype & op
 datatype和op分为预定义和用户自定义两类，其中内部预定义可以细分为多种类型。
 提供统一的接口，内部隐藏预定义类型和用户自定义类型的处理，对于用户自定义的类型调用用户注册的RTE函数。
