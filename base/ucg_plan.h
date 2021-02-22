@@ -37,7 +37,7 @@ typedef struct ucg_plan_bcast_params {
 
 /**
  * @ingroup UCG_PLAN
- * @brief Structure of broadcast plan parameters.
+ * @brief Structure of allreduce plan parameters.
  */
 typedef struct ucg_plan_allreduce_params {
     ucg_plan_params_t super;
