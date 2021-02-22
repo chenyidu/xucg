@@ -50,6 +50,14 @@ typedef struct ucg_plan_allreduce_params {
 
 /**
  * @ingroup UCG_PLAN
+ * @brief Structure of barrier plan parameters.
+ */
+typedef struct ucg_plan_barrier_params {
+    ucg_plan_params_t super;
+    /* Barrier has no special parameters. */
+} ucg_plan_barrier_params_t;
+/**
+ * @ingroup UCG_PLAN
  * @brief Select a plan.
  *
  * @params [in] params Pointer to a derived class of ucg_plan_params_t.
