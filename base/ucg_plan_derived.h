@@ -198,7 +198,7 @@ typedef strcut ucg_plan_allreduce {
  */
 typedef strcut ucg_plan_barrier {
     ucg_plan_t super;
-    /* Barrier has no specified parameters. */
+    ucg_plan_barrier_params_t params;
 } ucg_plan_barrier_t;
 
 /**
