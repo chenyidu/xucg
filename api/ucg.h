@@ -220,6 +220,25 @@ int ucg_group_progress(ucg_group_h group);
 
 /**
  * @ingroup UCG_REQUEST
+ * @brief Initialize a bcast request.
+ *
+ * Create a request to broadcast a message from the root process to all other processes of the group.
+ * @param [in] group UCG group handle.
+ * @param [in] buffer Starting address of buffer.
+ * @param [in] count Number of elements in buffer.
+ * @param [in] dtype Data type of buffer.
+ * @param [in] root Position of root handle in handles(ucg_group_params_t::members::handles).
+ * @param [out] request Request.
+ */
+ucs_status_t ucg_request_bcast_init(ucg_group_h group,
+                                    void *buffer, 
+                                    int count, 
+                                    ucg_datatype_t *dtype, 
+                                    int root,
+                                    ucg_request_h *request);
+
+/**
+ * @ingroup UCG_REQUEST
  * @brief Initialize a allreduce request.
  *
  * Create a request to combine values from all processes of the group and distributes the result back to all processes of the group.
@@ -242,22 +261,13 @@ ucs_status_t ucg_request_allreduce_init(ucg_group_h group,
 
 /**
  * @ingroup UCG_REQUEST
- * @brief Initialize a bcast request.
+ * @brief Initialize a barrier request.
  *
- * Create a request to broadcast a message from the root process to all other processes of the group.
+ * Create a request to block until all processes in the group have reached this routine.
  * @param [in] group UCG group handle.
- * @param [in] buffer Starting address of buffer.
- * @param [in] count Number of elements in buffer.
- * @param [in] dtype Data type of buffer.
- * @param [in] root Position of root handle in handles(ucg_group_params_t::members::handles).
  * @param [out] request Request.
  */
-ucs_status_t ucg_request_bcast_init(ucg_group_h group,
-                                    void *buffer, 
-                                    int count, 
-                                    ucg_datatype_t *dtype, 
-                                    int root,
-                                    ucg_request_h *request);
+ucs_status_t ucg_request_barrier_init(ucg_group_h group, ucg_request_h *request);
 
 /**
  * @ingroup UCG_REQUEST
