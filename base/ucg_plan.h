@@ -6,6 +6,9 @@
 #ifndef UCG_PLAN_H_
 #define UCG_PLAN_H_
 
+/* Action buffer holder need to replaced by real buffer, must be different from NULL. */
+#define UCG_BUFFER_HOLDER ((void*)1)
+
 typedef enum ucg_plan_action_type {
     UCG_PLAN_ACTION_TYPE_SEND,
     UCG_PLAN_ACTION_TYPE_RECV,
@@ -14,51 +17,77 @@ typedef enum ucg_plan_action_type {
     UCG_PLAN_ACTION_TYPE_MAX,
 } ucg_plan_action_type_t;
 
+typedef enum ucg_plan_type {
+    UCG_PLAN_TYPE_BCAST,
+    UCG_PLAN_TYPE_ALLREDUCE,
+    UCG_PLAN_TYPE_MAX,
+} ucg_plan_type_t;
+
+typedef ucg_plan_action_params {
+    struct {
+        uint8_t *data; 
+        int length;
+    } recv;
+} ucg_plan_action_params_t;
+
 typedef struct ucg_plan_action ucg_plan_action_t;
-typedef ucs_status_t (*ucg_plan_action_generic_cb_t)(ucg_plan_action_t *action);
+
+/**
+ * @ingroup UCG_PLAN_ACTION
+ * @brief Generic action routine.
+ */
+typedef ucs_status_t (*ucg_plan_action_generic_cb_t)(ucg_plan_action_t *action, ucg_plan_action_params_t *params);
 
 /**
  * @ingroup UCG_PLAN_ACTION
  * @brief Action peers for sending and receiving.
  */
-typedef struct ucg_plan_action_peers_t {
+typedef struct ucg_plan_action_peers {
     int count; /* Number of peers */
     int *peers; /* Relative member ID which needs to be converted to handle 
-                   for creating communication channel. */
-} ucg_plan_action_peers_t_t;
+                   for communication. */
+} ucg_plan_action_peers_t;
 
+/**
+ * @ingroup UCG_PLAN_ACTION
+ * @brief Buffer structure for action.
+ *
+ * Action buffer is related to action peers, so the number of elements in 
+ * buffers is equal to ucg_plan_action_peers_t::count.In other words, 
+ * buffers[i], lengths[i] and capacitys[i] are associated with peers[i].
+ */
 typedef struct ucg_plan_action_buf {
-    int count; /* Number of elements in buffers array and lengths array. */
-    uint8_t **buffers;
+    uint8_t **buffers; 
     int *lengths;
+    int *capcitys;
 } ucg_plan_action_buf_t;
 
 /**
- * @ingroup UCG_PLAN
- * @brief Constant field of an action
+ * @ingroup UCG_PLAN_ACTION
+ * @brief Infrastructure of an action.
  *
- * When do plan clone, something in the action is no need to change. 
- * This structure holds the unchanged field of an action.
+ * When cloning a plan, something in the action is no need to change, we call it 
+ * the infrastructure of an action which can be reused directly.
  */
-typedef struct ucg_plan_action_constant {
+typedef struct ucg_plan_action_infra {
     int refcount; /* Reference count */
     uint8_t id; /* Action ID */
     ucg_plan_action_type_t type;
     union {
         ucg_plan_action_peers_t send;
         ucg_plan_action_peers_t recv;
+        ucg_plan_action_peers_t reduce;
         ucg_plan_action_generic_cb_t generic;
     };
-} ucg_plan_action_constant_t;
+} ucg_plan_action_infra_t;
 
 /**
- * @ingroup UCG_PLAN
+ * @ingroup UCG_PLAN_ACTION
  * @brief Base structure of plan action.
  */
 struct ucg_plan_action {
-    ucg_plan_action_constant_t *constant;
+    ucg_plan_action_infra_t *infra;
     union {
-       /* The size of send array is equal to generic->send.count, recv and reduce are the same. */
        ucg_plan_action_buf_t send;
        ucg_plan_action_buf_t recv;
        ucg_plan_action_buf_t reduce;
@@ -66,15 +95,100 @@ struct ucg_plan_action {
     ucg_plan_action_t* next;
 };
 
+/**
+ * @ingroup UCG_PLAN
+ * @brief Base structure of plan parameters.
+ */
+typedef struct ucg_plan_params {
+    ucg_plan_type_t type;
+    uint64_t *handles; /* Handles of communication members. */
+} ucg_plan_params_t;
+
+/**
+ * @ingroup UCG_PLAN
+ * @brief Base structure of plan.
+ */
 typedef struct ucg_plan {
-    int refcount;
+    int refcount; 
+    ucg_plan_type_t type;
+    const char *name;
+    const char *description;
+ 
+    itn action_cnt;
+    ucg_plan_action_t *action;
 } ucg_plan_t;
 
-inline ucg_plan_t* ucg_plan_clone(ucg_plan_t *plan, ...)
-{
-    return plan->clone(plan, ...);
-}
+/**
+ * @ingroup UCG_PLAN
+ * @brief Structure of broadcast plan parameters.
+ */
+typedef struct ucg_plan_bcast_params {
+    ucg_plan_params_t super;
+    void *buffer; 
+    int count; 
+    ucg_datatype_t *dtype;
+    int root;
+} ucg_plan_bcast_params_t;
 
-#define UCG_PLAN_REGISTER(_plan, _name, _desciption,)
- 
+/**
+ * @ingroup UCG_PLAN
+ * @brief Structure of broadcast plan.
+ */
+typedef strcut ucg_plan_bcast {
+    ucg_plan_t super;
+    ucg_plan_bcast_params_t params;
+} ucg_plan_bcast_t;
+
+/**
+ * @ingroup UCG_PLAN
+ * @brief Structure of broadcast plan parameters.
+ */
+typedef struct ucg_plan_allreduce_params {
+    ucg_plan_params_t super;
+    const void *sendbuf;
+    void *recvbuf;
+    int count;
+    ucg_datatype_t *dtype;
+    ucg_op_t *op;
+} ucg_plan_allreduce_params_t;
+
+/**
+ * @ingroup UCG_PLAN
+ * @brief Structure of broadcast plan.
+ */
+typedef strcut ucg_plan_allreduce {
+    ucg_plan_t super;
+    ucg_plan_allreduce_params_t params;
+} ucg_plan_allreduce_t;
+
+/**
+ * @ingroup UCG_PLAN
+ * @brief Structure of broadcast plan.
+ */
+typedef strcut ucg_plan_barrier {
+    ucg_plan_t super;
+    /* Barrier has no specified parameters. */
+} ucg_plan_barrier_t;
+
+
+#define UCG_PLAN_REGISTER(_plan) \
+    UCS_STATIC_INIT { \
+        ucg_plan_register(_plan); \
+    }
+
+/**
+ * Define a static object of plan.
+ * Example: UCG_PLAN_STATIC_DEFINE_AND_REGISTER(ktree, bcast, BCAST, "Using knonimal tree to broadcast.")
+ */
+#define UCG_PLAN_STATIC_DEFINE_AND_REGISTER(_name, _type, _uppercase_type, _description) \
+    static ucg_plan_##_type##_t ucg_plan_##_type##_##_name = {\
+        .refcount = 1, /* Static object can not be released. */ \
+        .type = UCG_PLAN_TYPE_##_upcase_type, \
+        .name = #_name, \
+        .description = _description, \
+        .action_cnt = 0, \
+        .action = NULL, \
+    }; \
+    UCG_PLAN_REGISTER(&ucg_plan_##_type##_##_name)
+
 #endif
