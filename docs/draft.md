@@ -27,8 +27,8 @@
 │   └── ...                     
 └── plans                             # 集合操作算法实现目录
     ├── recursive_doubling                # 以算法类型命名的目录
-    |   ├── allreduce.c                     # 基于该类算法实现的Allreduce Plan
-    |   ├── barrier.c                       # 基于该类算法实现的Barrier Plan  
+    |   ├── rd_allreduce.c                     # 基于该类算法实现的Allreduce Plan
+    |   ├── rd_barrier.c                       # 基于该类算法实现的Barrier Plan  
     |   ├── rd.c                            # 算法实现
     |   ├── rd.h
     └── ...                           
