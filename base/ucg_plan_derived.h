@@ -3,10 +3,12 @@
  * See file LICENSE for terms.
  */
 
-#ifndef UCG_PLAN_INNER_H_
-#define UCG_PLAN_INNER_H_
+#ifndef UCG_PLAN_DERIVED_H_
+#define UCG_PLAN_DERIVED_H_
 
 #include "ucg_plan.h"
+#include <ucs/type/status.h>
+#include <stdint.h>
 
 /* Action buffer holder need to replaced by real buffer, must be different from NULL. */
 #define UCG_BUFFER_HOLDER ((void*)1)
@@ -104,7 +106,7 @@ typedef struct ucg_plan_action_buf {
  */
 typedef struct ucg_plan_action_infra {
     int refcount; /* Reference count */
-    uint8_t id; /* Action ID */
+    uint16_t id; /* Action ID */
     ucg_plan_action_type_t type;
     union {
         ucg_plan_action_peers_t send;
@@ -128,8 +130,14 @@ struct ucg_plan_action {
     ucg_plan_action_t* next;
 };
 
+/**
+ * @ingroup UCG_PLAN
+ * @brief Plan's attribution.
+ *
+ * At present, Selecting plan will use these information.
+ */
 typedef struct ucg_plan_attr {
-    
+    /* TODO: Depending on selection strategy. */
 } ucg_plan_attr_t;
 
 /**
