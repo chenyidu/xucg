@@ -2,13 +2,38 @@
  * Copyright (C) Huawei Technologies Co., Ltd. 2019-2020.  ALL RIGHTS RESERVED.
  * See file LICENSE for terms.
  */
- 
-#ifndef UCG_PLAN_H_
-#define UCG_PLAN_H_
+
+/* The header file cannot be directly contained except for the derived plans. */ 
+
+#ifndef UCG_PLAN_INNER_H_
+#define UCG_PLAN_INNER_H_
+
+#include "ucg_plan.h"
 
 /* Action buffer holder need to replaced by real buffer, must be different from NULL. */
 #define UCG_BUFFER_HOLDER ((void*)1)
 
+/* Register a plan pointer */
+#define UCG_PLAN_REGISTER(_plan) \
+    UCS_STATIC_INIT { \
+        ucg_plan_register(_plan); \
+    }
+
+/**
+ * Define a static object of plan.
+ * Example: UCG_PLAN_STATIC_DEFINE_AND_REGISTER(ktree, bcast, BCAST, "Using knonimal tree to broadcast.")
+ */
+#define UCG_PLAN_STATIC_DEFINE_AND_REGISTER(_name, _type, _uppercase_type, _description) \
+    static ucg_plan_##_type##_t ucg_plan_##_type##_##_name = {\
+        .refcount = 1, /* Static object can not be released. */ \
+        .type = UCG_PLAN_TYPE_##_upcase_type, \
+        .name = #_name, \
+        .description = _description, \
+        .action_cnt = 0, \
+        .action = NULL, \
+    }; \
+    UCG_PLAN_REGISTER(&ucg_plan_##_type##_##_name)
+     
 typedef enum ucg_plan_action_type {
     UCG_PLAN_ACTION_TYPE_SEND,
     UCG_PLAN_ACTION_TYPE_RECV,
@@ -16,12 +41,6 @@ typedef enum ucg_plan_action_type {
     UCG_PLAN_ACTION_TYPE_GENERIC,
     UCG_PLAN_ACTION_TYPE_MAX,
 } ucg_plan_action_type_t;
-
-typedef enum ucg_plan_type {
-    UCG_PLAN_TYPE_BCAST,
-    UCG_PLAN_TYPE_ALLREDUCE,
-    UCG_PLAN_TYPE_MAX,
-} ucg_plan_type_t;
 
 typedef ucg_plan_action_params {
     struct {
@@ -97,15 +116,6 @@ struct ucg_plan_action {
 
 /**
  * @ingroup UCG_PLAN
- * @brief Base structure of plan parameters.
- */
-typedef struct ucg_plan_params {
-    ucg_plan_type_t type;
-    uint64_t *handles; /* Handles of communication members. */
-} ucg_plan_params_t;
-
-/**
- * @ingroup UCG_PLAN
  * @brief Base structure of plan.
  */
 typedef struct ucg_plan {
@@ -116,19 +126,9 @@ typedef struct ucg_plan {
  
     itn action_cnt;
     ucg_plan_action_t *action;
+ 
+    ucg_plan_clone_cb_t clone;
 } ucg_plan_t;
-
-/**
- * @ingroup UCG_PLAN
- * @brief Structure of broadcast plan parameters.
- */
-typedef struct ucg_plan_bcast_params {
-    ucg_plan_params_t super;
-    void *buffer; 
-    int count; 
-    ucg_datatype_t *dtype;
-    int root;
-} ucg_plan_bcast_params_t;
 
 /**
  * @ingroup UCG_PLAN
@@ -138,19 +138,6 @@ typedef strcut ucg_plan_bcast {
     ucg_plan_t super;
     ucg_plan_bcast_params_t params;
 } ucg_plan_bcast_t;
-
-/**
- * @ingroup UCG_PLAN
- * @brief Structure of broadcast plan parameters.
- */
-typedef struct ucg_plan_allreduce_params {
-    ucg_plan_params_t super;
-    const void *sendbuf;
-    void *recvbuf;
-    int count;
-    ucg_datatype_t *dtype;
-    ucg_op_t *op;
-} ucg_plan_allreduce_params_t;
 
 /**
  * @ingroup UCG_PLAN
@@ -170,25 +157,10 @@ typedef strcut ucg_plan_barrier {
     /* Barrier has no specified parameters. */
 } ucg_plan_barrier_t;
 
-
-#define UCG_PLAN_REGISTER(_plan) \
-    UCS_STATIC_INIT { \
-        ucg_plan_register(_plan); \
-    }
-
 /**
- * Define a static object of plan.
- * Example: UCG_PLAN_STATIC_DEFINE_AND_REGISTER(ktree, bcast, BCAST, "Using knonimal tree to broadcast.")
+ * @ingroup UCG_PLAN
+ * @brief Register a plan
  */
-#define UCG_PLAN_STATIC_DEFINE_AND_REGISTER(_name, _type, _uppercase_type, _description) \
-    static ucg_plan_##_type##_t ucg_plan_##_type##_##_name = {\
-        .refcount = 1, /* Static object can not be released. */ \
-        .type = UCG_PLAN_TYPE_##_upcase_type, \
-        .name = #_name, \
-        .description = _description, \
-        .action_cnt = 0, \
-        .action = NULL, \
-    }; \
-    UCG_PLAN_REGISTER(&ucg_plan_##_type##_##_name)
+void ucg_plan_register(ucg_plan_t *plan);
 
 #endif
