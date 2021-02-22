@@ -203,7 +203,6 @@ typedef struct ucg_rte_mpi {
     } address;
  
     struct {
-        ucg_mpi_dt_is_contig_cb_t is_contig;
         ucg_mpi_dt_is_same_cb_t is_same;
      
         ucg_mpi_dt_start_pack_cb_t start_pack;
