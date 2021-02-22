@@ -22,7 +22,7 @@
  * Example: UCG_PLAN_STATIC_DEFINE_AND_REGISTER(ktree, bcast, BCAST, "Using k-nonimal tree to broadcast.")
  */
 #define UCG_PLAN_STATIC_DEFINE_AND_REGISTER(_name, _type, _uppercase_type, _description, \
-                                            _clone, _is_available, _query) \
+                                            _is_available, _query, _clone, _release) \
     static ucg_plan_##_type##_t ucg_plan_##_type##_##_name = {\
         .refcount = 1, /* Static object can not be released. */ \
         .type = UCG_PLAN_TYPE_##_upcase_type, \
@@ -30,9 +30,10 @@
         .description = _description, \
         .action_cnt = 0, \
         .action = NULL, \
-        .clone = _clone, \
         .is_available = _is_available, \
         .query = _query, \
+        .clone = _clone, \
+        .release = _release, \
     }; \
     UCG_PLAN_REGISTER(&ucg_plan_##_type##_##_name)
 
@@ -158,6 +159,14 @@ typedef ucg_plan_t* (*ucg_plan_clone_cb_t)(ucg_plan_t *plan, ucg_plan_params_t *
 
 /**
  * @ingroup UCG_PLAN
+ * @brief Release a plan.
+ *
+ * This interface should return a initialized plan which has generated all actions.
+ */
+typedef void (*ucg_plan_release_cb_t)(ucg_plan_t *plan);
+
+/**
+ * @ingroup UCG_PLAN
  * @brief Base structure of plan.
  */
 typedef struct ucg_plan {
@@ -172,6 +181,7 @@ typedef struct ucg_plan {
     ucg_plan_is_available_cb_t is_available;
     ucg_plan_query_cb_t query;
     ucg_plan_clone_cb_t clone;
+    ucg_plan_release_cb_t release;
 } ucg_plan_t;
 
 /**
