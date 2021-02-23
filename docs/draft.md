@@ -221,6 +221,29 @@ when recv data:
 datatype和op分为预定义和用户自定义两类，其中内部预定义可以细分为多种类型。
 提供统一的接口，内部隐藏预定义类型和用户自定义类型的处理，对于用户自定义的类型调用用户注册的RTE函数。
 
+不论datatype是何种类型，让Plan实现者总是基于内存是连续的前提进行开发，减少考虑的细节。
+如果datatype是非连续的，Plan如何来决定Action Buffer？
+1. 算法以datatype为单位进行Action Buffer的划分。
+```
+// 算法只需计算offset和count即可
+action.type = RECV
+action.buffers[0] = user_buffer + datatype->size * offset
+action.lengths[0] = datatype->size * count
+
+when recv data：
+    length = 
+    unpack(data, action.buffers[0], action.lengths[0])
+```
+3. 算法不以datatype为单位，而会在一个datatype中任意位置切割操作
+
+Plan需要基于datatype+count决定Action buffer，
+从底向上
+1. Channel收发总是连续的
+2. 实际数据位置可能是非连续的，需要通过pack()将非连续的数据放到连续的内存中
+3. Plan实现Action时，总是认为数据位置是连续的
+
+
+
 ## Planner是否有存在的必要？—— 否
 不同Planner包含着不同的Plan，一旦划分Planner，那么一个Planner中的Plan依赖于另一个Planner里的Plan是相当违反直觉的，但实际中一个新算法会依赖原先的一些基础算法，而基础算法通常都位于builtin Planner。因此就有了这个问题。
 
