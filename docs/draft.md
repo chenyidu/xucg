@@ -17,20 +17,22 @@
 # 目录结构
 ```
 ├── api                               # 对外头文件目录
-│   ├── ucg.h                             # 对外的数据结构定义以及函数声明
-│   ├── ucg_def.h                         # 类型别名
-├── base                              # 内部基础功能目录
-│   ├── ucg_topo.c                        # 进程组拓扑信息
-│   └── ...
-├── core                              # 对外功能实现目录
-│   ├── ucg_request.c                     # 集合操作请求
+│   ├── ucg.h                                                
+|   └── ...
+├── core                              # 核心功能实现目录
+│   ├── ucg_context.c                     
 │   └── ...                     
 └── plans                             # 集合操作算法实现目录
+    ├── ucg_plan.c                        # plan对外接口实现
+    ├── ucg_plan.h                        # plan对外头文件
+    ├── base                              # plan基础实现
+    |   ├── ucg_plan_base.h                  # plan内部基类头文件
+    |   └── ...
     ├── recursive_doubling                # 以算法类型命名的目录
-    |   ├── allreduce.c                     # 基于该类算法实现的Allreduce Plan
-    |   ├── barrier.c                       # 基于该类算法实现的Barrier Plan  
-    |   ├── rd.c                            # 算法实现
-    |   ├── rd.h
+    |   ├── rd_allreduce_plan.c              # 基于该类算法实现的Allreduce Plan
+    |   ├── rd_barrier_plan.c                # 基于该类算法实现的Barrier Plan  
+    |   ├── rd.c                             # 算法实现
+    |   └── rd.h
     └── ...                           
 ```
 目录结构与UCX其他组件的风格尽量保持一致，如api、core、base。
