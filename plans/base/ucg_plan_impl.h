@@ -8,40 +8,31 @@
 
 #include "ucg_plan.h"
 #include <ucs/type/status.h>
+#include <ucs/sys/preprocessor.h>
+#include <ucs/config/parser.h>
+
 #include <stdint.h>
 
 /* Action buffer holder need to replaced by real buffer, must be different from NULL. */
 #define UCG_BUFFER_HOLDER ((void*)1)
 
-/* Register a plan pointer */
-#define UCG_PLAN_REGISTER(_plan) \
+/* Register a plan template */
+#define UCG_PLAN_REGISTER_TEMPLATE(_template)\
     UCS_STATIC_INIT { \
-        ucg_plan_register(_plan); \
+        ucg_plan_register_template(&_template); \
     }
 
 /**
- * Define a static object of plan and register to plan pool.
- * Example: UCG_PLAN_STATIC_DEFINE_AND_REGISTER(ktree, bcast, BCAST, "Using k-nonimal tree to broadcast.")
+ * @ingroup UCG_PLAN
+ * @brief Algorigthm id for broadcast.
  */
-#define UCG_PLAN_STATIC_DEFINE_AND_REGISTER(_name, _type, _uppercase_type, _description, \
-                                            _is_available, _query, _clone, _release) \
-    static ucg_plan_##_type##_t ucg_plan_##_type##_##_name = {\
-        .refcount = 1, /* Static object can not be released. */ \
-        .type = UCG_PLAN_TYPE_##_upcase_type, \
-        .name = #_name, \
-        .description = _description, \
-        .action_cnt = 0, \
-        .action = NULL, \
-        .is_available = _is_available, \
-        .query = _query, \
-        .clone = _clone, \
-        .release = _release, \
-    }; \
-    UCG_PLAN_REGISTER(&ucg_plan_##_type##_##_name)
+typedef enum ucg_plan_bcast_id {
+    UCG_PLAN_BCAST_ID_KTREE, 
+} ucg_plan_bcast_id_t;
 
 /**
  * @ingroup UCG_PLAN_ACTION
- * @brief Abstracted action type.
+ * @brief  Action type.
  *
  * At present, The way of SEND, RECV and REDUCE are performed is very clear. 
  * Keep a generic type for some special actions.
@@ -58,7 +49,7 @@ typedef enum ucg_plan_action_type {
  * @ingroup UCG_PLAN_ACTION
  * @brief Parameters for performing action.
  */
-typedef ucg_plan_action_params {
+typedef struct ucg_plan_action_params {
     struct {
         uint8_t *data; 
         int length;
@@ -71,7 +62,8 @@ typedef struct ucg_plan_action ucg_plan_action_t;
  * @ingroup UCG_PLAN_ACTION
  * @brief Generic action routine.
  */
-typedef ucs_status_t (*ucg_plan_action_generic_cb_t)(ucg_plan_action_t *action, ucg_plan_action_params_t *params);
+typedef ucs_status_t (*ucg_plan_action_generic_cb_t)(ucg_plan_action_t *action, 
+                                                     ucg_plan_action_params_t *params);
 
 /**
  * @ingroup UCG_PLAN_ACTION
@@ -89,12 +81,11 @@ typedef struct ucg_plan_action_peers {
  *
  * Action buffer is related to action peers, so the number of elements in 
  * buffers is equal to ucg_plan_action_peers_t::count.In other words, 
- * buffers[i], lengths[i] and capacitys[i] are associated with peers[i].
+ * buffers[i], lengths[i] are associated with peers[i].
  */
 typedef struct ucg_plan_action_buf {
     uint8_t **buffers; 
     int *lengths;
-    int *capcitys;
 } ucg_plan_action_buf_t;
 
 /**
@@ -140,89 +131,108 @@ typedef struct ucg_plan_attr {
     /* TODO: Depending on selection strategy. */
 } ucg_plan_attr_t;
 
+typedef struct ucg_plan ucg_plan_t;
 /**
  * @ingroup UCG_PLAN
- * @brief Check whether the plan is available.
+ * @brief Check Whether a plan is available.
  * 
+ * A plan template can instantiate different plans based on specific 
+ * configuration and parameters. We need to know whether the plan is available.
+ * 
+ * @param [in] config Configuration to instantiate a plan.
+ * @param [in] params Parameters to instantiate a plan.
  * @return 1-is available, 0-not available.
  */
-typedef int (*ucg_plan_is_available_cb_t)(ucg_plan_t *plan, ucg_plan_params_t *params);
+typedef int (*ucg_plan_is_available_cb_t)(ucg_plan_config_t *config, 
+                                          ucg_plan_params_t *params);
 
 /**
  * @ingroup UCG_PLAN
  * @brief Get plan's attribution.
  *
- * This interface is used to obtain some scoring information from plan, so that 
- * we can select the best plan from multiple plans.
+ * @param [in] config Configuration to instantiate a plan.
+ * @param [in] params Parameters to instantiate a plan. 
+ * @param [out] attr Plan's attribution. 
  */
-typedef ucs_status_t (*ucg_plan_query_cb_t)(ucg_plan_t *plan, ucg_plan_attr_t* attr);
+typedef ucs_status_t (*ucg_plan_query_cb_t)(ucg_plan_config_t *config, 
+                                            ucg_plan_params_t *params,
+                                            ucg_plan_attr_t* attr);
 
 /**
  * @ingroup UCG_PLAN
- * @brief Clone a plan.
+ * @brief Initialize a plan object.
  *
- * This interface should return a initialized plan which has generated all actions.
+ * @param [in] config Configuration to instantiate a plan.
+ * @param [in] params Parameters to instantiate a plan. 
+ * @param [out] plan Initialized plan object.
  */
-typedef ucg_plan_t* (*ucg_plan_clone_cb_t)(ucg_plan_t *plan, ucg_plan_params_t *params);
+typedef ucs_status_t (*ucg_plan_init_cb_t)(ucg_plan_config_t *config,
+                                           ucg_plan_params_t *params, 
+                                           ucg_plan_t **plan);
 
 /**
  * @ingroup UCG_PLAN
- * @brief Release a plan.
+ * @brief Clone a plan object.
  *
- * This interface should return a initialized plan which has generated all actions.
+ * The new plan has same configuration with the origin plan.
+ * @param [in] plan Origin plan object.
+ * @param [in] params Parameters.
+ * @param [out] new_plan New plan object.
+ */
+typedef ucs_status_t (*ucg_plan_clone_cb_t)(ucg_plan_t *plan, 
+                                            ucg_plan_params_t *params, 
+                                            ucg_plan_t **new_plan);
+
+/**
+ * @ingroup UCG_PLAN
+ * @brief Release a plan returned by init() or clone()
  */
 typedef void (*ucg_plan_release_cb_t)(ucg_plan_t *plan);
 
 /**
  * @ingroup UCG_PLAN
- * @brief Base structure of plan.
+ * @brief Plan template.
+ * 
+ * Plan template is used to instantiate plan objects based on different 
+ * configurations and parameters.
  */
-typedef struct ucg_plan {
+typedef struct ucg_plan_template {
     int refcount; 
     ucg_plan_type_t type;
-    const char *name;
+    int id;
     const char *description;
- 
-    int action_cnt;
-    ucg_plan_action_t *action; /* The head of an aciton list. */
- 
+    ucs_config_global_list_entry_t config;
+
     ucg_plan_is_available_cb_t is_available;
     ucg_plan_query_cb_t query;
+    ucg_plan_init_cb_t init;
     ucg_plan_clone_cb_t clone;
     ucg_plan_release_cb_t release;
-} ucg_plan_t;
+} ucg_plan_template_t;
+
+/**
+ * @ingroup UCG_PLAN
+ * @brief Base structure of plan.
+ */
+struct ucg_plan {
+    ucg_plan_template_t *based_template;
+    int action_cnt;
+    ucg_plan_action_t *action; /* The head of an aciton list. */
+};
 
 /**
  * @ingroup UCG_PLAN
  * @brief Base structure of broadcast plan.
  */
-typedef strcut ucg_plan_bcast {
+typedef struct ucg_plan_bcast {
     ucg_plan_t super;
     ucg_plan_bcast_params_t params;
 } ucg_plan_bcast_t;
 
 /**
  * @ingroup UCG_PLAN
- * @brief Base structure of allreduce plan.
+ * @brief Register a plan template.
  */
-typedef strcut ucg_plan_allreduce {
-    ucg_plan_t super;
-    ucg_plan_allreduce_params_t params;
-} ucg_plan_allreduce_t;
-
-/**
- * @ingroup UCG_PLAN
- * @brief Base structure of barrier plan.
- */
-typedef strcut ucg_plan_barrier {
-    ucg_plan_t super;
-    ucg_plan_barrier_params_t params;
-} ucg_plan_barrier_t;
-
-/**
- * @ingroup UCG_PLAN
- * @brief Register a plan
- */
-void ucg_plan_register(ucg_plan_t *plan);
+void ucg_plan_register_template(ucg_plan_template_t *plan_template);
 
 #endif

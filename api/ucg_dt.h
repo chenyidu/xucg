@@ -15,7 +15,7 @@ typedef enum ucg_dt_type_id {
     UCG_DT_MAX_PREDEFINED, 
  
     UCG_DT_USER_DEFINED, 
-} ucg_dt_type_t;
+} ucg_dt_type_id_t;
 
 typedef enum ucg_dt_op_type_id {
     UCG_DT_OP_SUM,
@@ -25,12 +25,13 @@ typedef enum ucg_dt_op_type_id {
 } ucg_dt_op_type_id_t;
 
 typedef struct ucg_datatype {
-    ucg_dt_type_t id;
+    ucg_dt_type_id_t id;
+    int is_contig;
     void *dt_ptr;
 } ucg_datatype_t;
 
 typedef struct ucg_op {
-    ucg_dt_op_type_t id;
+    ucg_dt_op_type_id_t id;
     void *op_ptr;
 } ucg_op_t;
 

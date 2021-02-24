@@ -6,12 +6,21 @@
 #ifndef UCG_PLAN_H_
 #define UCG_PLAN_H_
 
+#include <ucg/api/ucg_dt.h>
+#include <ucs/datastruct/ptr_array.h>
+
+typedef void ucg_plan_config_t;
+
 typedef enum ucg_plan_type {
     UCG_PLAN_TYPE_BCAST,
     UCG_PLAN_TYPE_ALLREDUCE,
     UCS_PLAN_TYPE_BARRIER,
     UCG_PLAN_TYPE_MAX,
 } ucg_plan_type_t;
+
+typedef struct ucg_plan_pool {
+    ucs_ptr_array_t plans;
+} ucg_plan_pool_t;
 
 /**
  * @ingroup UCG_PLAN
@@ -56,14 +65,20 @@ typedef struct ucg_plan_barrier_params {
     ucg_plan_params_t super;
     /* Barrier has no special parameters. */
 } ucg_plan_barrier_params_t;
+
+typedef struct ucg_plan ucg_plan_t;
+
 /**
  * @ingroup UCG_PLAN
- * @brief Select a plan.
+ * @brief Select a plan from plan pool.
  *
- * @params [in] params Pointer to a derived class of ucg_plan_params_t.
- * @return A plan pointer, NULL means no available plan.
+ * @param [in] plan_pool Plan pool.
+ * @param [in] params Parameters.
+ * @param [out] plan Selected plan.
  */
-ucg_plan_t* ucg_plan_select(ucg_plan_params_t *params);
+ ucs_status_t ucg_plan_select(ucg_plan_pool_t *plan_pool, 
+                              ucg_plan_params_t *params, 
+                              ucg_plan_t **plan);
 
 /**
  * @ingroup UCG_PLAN
@@ -72,5 +87,9 @@ ucg_plan_t* ucg_plan_select(ucg_plan_params_t *params);
  * @param [in] plan Plan returned by ucg_plan_select().
  */
 void ucg_plan_release(ucg_plan_t *plan);
+
+ucs_status_t ucg_plan_config_read(const char *env_prefix, 
+                                  const char *filename, 
+                                  ucg_plan_config_t *config);
 
 #endif

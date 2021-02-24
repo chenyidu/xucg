@@ -27,8 +27,8 @@
 │   └── ...                     
 └── plans                             # 集合操作算法实现目录
     ├── recursive_doubling                # 以算法类型命名的目录
-    |   ├── rd_allreduce.c                     # 基于该类算法实现的Allreduce Plan
-    |   ├── rd_barrier.c                       # 基于该类算法实现的Barrier Plan  
+    |   ├── allreduce.c                     # 基于该类算法实现的Allreduce Plan
+    |   ├── barrier.c                       # 基于该类算法实现的Barrier Plan  
     |   ├── rd.c                            # 算法实现
     |   ├── rd.h
     └── ...                           
@@ -41,8 +41,7 @@
 - - 子目录以算法名命名，同类的优化算法可放在同一目录下，比如recursive_doubling下可以有RD、Topo-Aware RD等。
 
 # 编码风格
-不采用UCX的编码风格，主要是对齐等号、变量等风格。这样的做法会在后续修改时无法直观看到实际的代码修改。
-比如
+使用UCX编码风格，除了对齐等号、变量，因为这样的做法由一个弊端是会在修改中增加一些无效操作，增加review成本，比如
 ```
 a    = 0;
 aaaa = 0;
@@ -53,122 +52,102 @@ a    ..= 0;
 aaaa ..= 0; 
 aaaaaa = 0;
 ```
-后续真的有需要时，通过工具统一刷一遍格式。
+> 后续有需要时，通过工具统一刷格式。
 
-# 抽象概念
-## 对外
-### RTE
-RTE（runtime environment）是UCG运行依赖的外部信息的抽象，以运行于MPI环境为例，包含MPI的特定函数、MPI的特定常量等。因为这些信息只需要初始化一次，所以专门定义一个抽象用来描述这些信息。
-- 单实例
+# 抽象
+| 名字 | 描述 | 关系 | 备注 |
+| --- | --- | --- | --- |
+| RTE |Runtime Environment, UCG运行时所依赖的环境信息，以运行于MPI环境为例，包含MPI函数、MPI常量等。| 单例 | 由User在使用UCG前初始化一次，相关信息会被内部使用 |
+| Context | 集合操作的执行上下文（执行资源） | RTE:Context = 1:N | 由User创建，可指定使用的Plan |
+| Group | 集合操作通讯组 | Context:Group = 1:N | 由User创建，等同于MPI Communicator |
+| Request | 集合操作 | Group:Request = 1:N | 由User创建，支持创建一次，执行多次。 |
+| Plan | 生成集合操作通讯步骤的算法 | Request:Plan = 1:1 | 对外以Plan Name为标识供User指定 |
+| Action | 算法行为，如收、发、规约等 | Plan:Action = 1:N | 内部抽象，Plan根据算法创建Action |
+| Plan Pool | Plan管理者 | Context:Plan Pool = 1:1 | 内部抽象，提供选择Plan（最佳算法选择）功能 |
+| Channels | 通讯管道管理 | 单例 | 内部抽象，提供收发数据功能，隐藏创建UCP EP、收发数据方式、链路复用、am handler注册等等。Channel指代UCP EP，因此不提供独立的抽象概念 | 
+| Topology | 运行环境中所有成员（进程）的拓扑信息 | 单例 | 内部抽象，以MPI为例，保存MPI_COMM_WORLD内所有进程的拓扑信息 |
 
-### Context
-Context是集合操作的执行资源的抽象。不同Context可以指定不同的资源。
-- RTE:Context = 1:N
-> 目前集合操作的执行资源是Plan
+# 命名约定
+| 名字 | 描述 | 备注 |
+| --- | --- | --- |
+| handle | User创建Group时指定的成员标识，要求全局唯一。全局唯一的意思是该成员在不同Group中使用同一个handle。 | 以MPI运行环境为例，handle可以是`ompi_proc_t*`或`MPI_COMM_WORLD rank`。 |
+| rank | 成员在Group handles数组中的下标。 | 仅用于简化Plan Action的生成，当需要通讯时需转换为handle。 |
 
-### Group
-Group是通信组的抽象，集合操作在Group内执行，集合操作可使用的资源由Group依托的Context决定。
-- Context:Group = 1:N
-> 以handle代表group成员，handle类型为uint64_t，由User指定，需保证全局（跨group）唯一。
+# 实现约定
+| 行为 | 描述 | 备注 |
+| --- | --- | --- |
+| Request Init| 当创建Request，若集合操作存在root，那么需传入root rank而非root handle。 | 通过root rank可快速找到root handle，若传入root handle则生成Plan时需要遍历Group handles得到root rank。 |
+| Plan Clone| 基于Copy On Write原则复制Plan。 | 1. 若集合操作完全一样，那么增加Plan引用计数后返回当前Plan。<br> 2. 若集合操作存在差异，那么创建Plan，但复用Action。 |
+| Action | Action只代表一类操作，不能出现RECV_THEN_SEND的组合类型 | |
 
-### Request
-Request是集合操作的抽象，支持初始化一次、执行多次
-- Group:Request = 1:N
+# 功能设计
+## 配置
+目前主要有两类配置
+1. 指定集合操作算法的配置项，该config table定义在ucg_context.c中。
+2. 指定Plan算法细节的配置项，该config table定义在Plan的源文件中。
 
-## 对内
-### Plan Pool
-所有Plan会注册到Plan Pool中，提供选择Plan功能（即最佳算法选择）
-- 单实例
+为了支持User能通过ucg_context_init()时指定特定的配置项，需要提供
+1. ucg_config_read()获取配置项指针`ucg_config_t*`
+2. ucg_config_modify()修改特定的配置项
 
-### Channel
-Channel是通讯管道的抽象，提供收发数据功能，隐藏调用UCP创建EP、调用UCT收发数据、链路复用、am handler未注册的处理等等。
-- 单实例
+因为两类配置项是隔离的，所以无法将配置项字段定义在一个结构体中，只能分开获取，然后放在一个指针数组中
+```
+struct ucg_config {
+    ucg_context xxxx
+    ucs_ptr_array_t config_bundles[UCG_PLAN_TYPE_MAX];
+}
+```
+因为不同Plan的配置项也是隔离的，相互并不感知，所以可能出现相同table name和table prefix，甚至一样的配置项名，需要增加检测机制。
 
-### Topology
-提供查询进程间距离的功能，内部隐藏拓扑的管理结构。
-- 单实例
+在ucg_config_modify()时，只有配置项名，但并不知道该配置项名属于哪个table，因此只能一个个尝试，直到设置成功。为了便利，可以约定每个table的prefix必须不一样，这样可以通过比较配置项名是否有该prefix，从而找到对应的table。
 
-### Plan
-根据特定算法生成的针对某一特定集合操作的通讯步骤、以及每个步骤的通讯对象和数据大小等。
-
-### Action
-Action是Plan中通讯步骤的抽象，集合操作执行框架从Plan中依次取出Action并执行。
-
-## 抽象间的关系
-### 从下到上
-1. 由特定算法生成Plan，Plan注册到Plan Pool中
-
-### 从上到下
-1. 初始化RTE：保存外部指定的MPI特定函数和常量（常量也可通过函数方式获取）、全局拓扑信息
-2. 创建Context：保存外部配置的Plan Name（默认为ALL）
-3. 创建Group：指定通讯组成员
-3. 创建Request：根据可用的Plan Name到Plan Pool中选择最佳的Plan并实例化，指定Request按该Plan执行
-4. 执行Request：框架执行Action并返回下一个Action，Request记录Plan的下一个Action，直到Action为UCG_LAST_ACTION时，标记Request状态为完成。
-
-# 设计细节
-## Group成员标识
-约定以handle作为Group成员标识，要求外部提供的handle为全局唯一，全局唯一的意思是该成员在不同Group中使用同一个handle（若运行环境为MPI，那么handle就是MPI_COMM_WORLD中可以唯一标识进程的值，设想中使用`ompi_proc_t*`)。
-
-- Plan的Action中保存handle作为sendto/recvfrom的对象
-- Channel根据handle通过RTE函数获取其地址，创建连接
-- Topology计算两个handle之间的距离，将handle按照拓扑距离分组（比如节点内为一组）
+还有一个问题是如何在初始化plan时，使用正确的modify后的config？config_bundles中Plan config的顺序与Plan模板数组的顺序一样，因此可以快速找到。
 
 ## Plan
-### 选择
-Plan提供一个函数如`is_available()`给Plan Pool，用来判断Plan是否支持特定的集合操作。
-- `is_available()`不止判断集合操作的参数、成员个数等，还需要判断依赖的环境是否就绪，比如Topology不可用时，topo-aware的Plan不能使用
+分为两类
+- Plan Template：Plan模板，包含Plan的元数据信息和函数，会注册到上层，供上层使用
+- Plan Object：基于Plan模板实例化的Plan对象，包含Plan配置信息、集合操作参数（成员个数、数据）等
 
-Plan Pool还需从多个可用的Plan里选择最佳Plan，有几种方案
-1. 直观的想法是给定传输计算开销，模拟运行Plan
-因为每个组成员的Action并不一样，比如broadcast的root只有发送，而其他成员可能有收有发或只有收，所以每个成员不能单纯模拟运行自己的Action，需要模拟运行全局。
-- Plan提供函数Plan::get_actions(group)
-- - 是否存在不同成员的从参数中获取的数据大小是不同的情况？—— 如果存在，那么模拟运行时不能考虑数据大小
-- - 函数内部可以实现cache，只需生成一次。
-- - 单元测试时，可使用该函数检测算法是否正确。
-- 以L1 cache latency为单位，按照经验设置不同distance的latency，模拟执行Action，并考虑Action的并行，得到一个最终的latency
-- 选择latency最小的Plan
+Plan Template代表一类算法，算法可根据配置信息和集合操作参数实例化一个Plan。
 
-2. Plan提供一个基于经验（基于实验室环境的实测值）的overhead，可按数据大小、成员个数提供更细粒度的overheader。不过影响overhead的因素很多，比如成员个数、成员位置、数据大小等，可能在实际环境中并不可信。
-3. 根据成员个数可算出需要的Action个数，选择Action个数少的Plan。
+Plan Template注册到Plan模板库中，供Group使用。
 
-### Member标识
-算法通常都是根据member id做计算的，因此使用`[0, number_of_member)`即handles数组的有效下标作为member id进行计算。计算完成后，需要从数组中取出对应的handle保存在Action中。
-> 创建集合操作的request时，若需传入进程标识（如bcast），则传入该进程在handles数组中的下标。若传入handle，则内部需要遍历handles数组才能得到Plan所需的root position。User在创建ucg group时指定的`ucg_group_params_t::members::handles`肯定是基于一定算法的，User会比UCG更方便地得到数组下标。
 
-### 复用（Copy On Write）
-在定义上，一个实例化的Plan是包含集合操作所有信息的，如通讯对象、通讯数据等。复用Plan实际就是复用Plan Action。Plan Action中的通讯对象只受算法影响的，通讯数据则受算法和集合操作本身的数据共同影响。在一个Group内的集合操作的通讯成员是固定的，也就是说同一算法的Plan Action的通讯对象是固定的，可以直接复用。通讯数据会变化，但确定每个Action通讯数据的算法是固定的。
-```
-Action
+## 指定Plan
+通过数字指定特定集合操作所使用的Plan，比如`UCX_ALLREDUCE_PLAN=0`
+
+## 选择Plan
+1. Plan Pool通过Plan的`is_available()`函数获取支持集合操作的Plan。`is_available()`不止判断集合操作的参数、成员个数等，还需要判断依赖的环境是否就绪，比如Topology不可用时，topo-aware的Plan不能使用。这由Plan开发者保证。
+2. Plan Pool通过Plan的`query()`函数获取信息，根据选择策略计算分数，从多个可用的Plan里选择最佳Plan。
+
+`query()`提供的信息要根据选择策略来定，**后续完善**。
+
+### 复用Plan
+> 更新认知：一个实例化的Plan是包含集合操作所有信息的，如通讯对象、通讯数据等。
+
+真正的写时复制实现起来比较麻烦，因此提前将Plan分为constant部分和mutable部分。对于constant部分通过指针引用，对于mutable部分通过constant部分里的指定函数初始化。Action同理。
+
+### 配置Plan
+Plan可以有自己的配置项，Plan对外提供读取、修改、释放配置的接口.
+每个Plan管理自己的config table。init时读取配置信息，clone时直接引用配置信息
+接口上允许外部指定config
+
+ucg config的入口为ucg_context_init()，传入的config即为ucg配置项也含有plan配置项
+struct ucg_config
 {
-    type: Send/Recv/Reduce/Generic  Action类型
-    peers: 0,1,2,3 对端ID
-    data: NULL  初始为NULL，通过data function计算得到
-    data function:
-}
-```
-复用
-- 若集合操作的参数完全一致，则可完整复用Plan
-- 若集合操作的数据存在不同，则执行Plan Clone。Plan Clone会直接拷贝Action，并将data置为NULL。更近一步，将type、peers、data function定义为constant field，直接引用内存空间，减少拷贝。
-```
-constant field
-{
-    reference count
-    type: Send/Recv/Reduce/Generic  Action类型
-    peers: 0,1,2,3 对端ID
-    data function:
-}
+    ucs_ptr_array_t config_bundles;
+};
 
-Action
-{
-    constant field pointer ->
-    data: NULL  初始为NULL，通过data function计算得到
-}
-```
-理论来说，当两个Group的member个数是一样时，是可以复用Plan的，当然该Plan必须非topo-aware即不依赖handle的位置。这么看的话，Action还应当保存对端的handles下标，执行Plan Clone时，当填写成实际的handle。
+实际结构为ucg_config_bundle_t数组，顺序为ucg context配置项，然后是plan模板注册顺序
+
+modify config时，只能在每个config bundle里尝试，可以通过约定table name作为table prefix，比较modify name和table prefix，如果一样再调用modify接口。
+
+从ucs config接口上看，似乎并不会检查不同table之间是否存在相同的环境变量。
+
+## 新增Plan
+当实现一个新Plan时，需要在对应的枚举体中增加id
 
 ## Action执行框架
-原则：每个Action只完成一类操作。
-
 对于Reduce Action，通常是先Recv再Reduce的，此时Recv Action是无需做真正的内存拷贝的，可以直接使用UCT层的接收buffer进行Reduce Action。还有先Recv再Send的情况即单纯转发，此时可以直接将UCT buffer的内容发送出去。
 ```
 do_action(action, data)
