@@ -26,7 +26,7 @@ typedef int (*ucg_mpi_world_rank_cb_t)(uint64_t handle);
  * @param [out] count Number of locations
  * @return 0-Success, Other-Fail.
  */
-typedef int (*ucg_mpi_locations_get_cb_t)(void **locations, int *size, int *count);
+typedef int (*ucg_mpi_locations_get_cb_t)(void **locations, uint64_t *size, uint64_t *count);
 
 /**
  * @ingroup UCG_RTE_MPI
@@ -48,10 +48,10 @@ typedef void (*ucg_mpi_locations_put_cb_t)(void *locations);
  * @return The distance between world_rank1 and world_rank2.
  */
 typedef ucg_distance_t (*ucg_mpi_locations_distance_cb_t)(void *locations, 
-                                                          int size,
-                                                          int count,
-                                                          int world_rank1, 
-                                                          int world_rank2);
+                                                          uint64_t size,
+                                                          uint64_t count,
+                                                          int32_t world_rank1, 
+                                                          int32_t world_rank2);
 
 /**
  * @ingroup UCG_RTE_MPI
@@ -64,7 +64,7 @@ typedef ucg_distance_t (*ucg_mpi_locations_distance_cb_t)(void *locations,
  * @param [in] dtype MPI datatype.
  * @return 0-Success, Other-Fail.
  */
-typedef int (*ucg_mpi_op_reduce_cb_t)(void *op, void *source, void *target, int count, void *dtype);
+typedef int (*ucg_mpi_op_reduce_cb_t)(void *op, void *source, void *target, uint64_t count, void *dtype);
 
 /**
  * @ingroup UCG_RTE_MPI
@@ -84,7 +84,7 @@ typedef int (*ucg_mpi_op_is_commute_cb_t)(void *op);
  * @papram [out] addr_len Address length.
  * @return 0-Success, Other-Fail.
  */
-typedef int (*ucg_mpi_addr_get_cb_t)(uint64_t handle, ucp_address_t **addr, size_t *addr_len);
+typedef int (*ucg_mpi_addr_get_cb_t)(uint64_t handle, ucp_address_t **addr, uint32_t *addr_len);
 
 /**
  * @ingroup UCG_RTE_MPI
@@ -93,15 +93,6 @@ typedef int (*ucg_mpi_addr_get_cb_t)(uint64_t handle, ucp_address_t **addr, size
  * @param [in] addr Address obtained through ucg_mpi_addr_get_cb.
  */
 typedef void (*ucg_mpi_addr_put_cb_t)(ucp_address_t *addr);
-
-/**
- * @ingroup UCG_RTE_MPI
- * @brief Start a packing request.
- *
- * @param [in] dtype MPI datatype.
- * @return 0 non-contig, 1 contig
- */
-typedef int (*ucg_mpi_dt_is_contig_cb_t)(void *dtype);
 
 /**
  * @ingroup UCG_RTE_MPI
@@ -122,7 +113,7 @@ typedef int (*ucg_mpi_dt_is_same_cb_t)(void *ldtype, void *rdtype);
  * @param [in] count Number of elements to pack into the buffer.
  * @return A state that is passed later to pack().
  */
-typedef void* (*ucg_mpi_dt_start_pack_cb_t)(void *dtype, void *buffer, int count);
+typedef void* (*ucg_mpi_dt_start_pack_cb_t)(void *dtype, void *buffer, uint64_t count);
 
 /**
  * @ingroup UCG_RTE_MPI
@@ -131,7 +122,7 @@ typedef void* (*ucg_mpi_dt_start_pack_cb_t)(void *dtype, void *buffer, int count
  * @param [in] state State returned by start_pack().
  * @return The size of the data in a packed form.
  */
-typedef int (*ucg_mpi_dt_packed_size)(void *state);
+typedef int (*ucg_mpi_dt_packed_size_cb_t)(void *state);
 
 /**
  * @ingroup UCG_RTE_MPI
@@ -143,7 +134,7 @@ typedef int (*ucg_mpi_dt_packed_size)(void *state);
  * @param [in] max_length Maximal length to pack.
  * @return The size of the data that was written to the destination buffer.
  */
-typedef int (*ucg_mpi_dt_pack_cb_t)(void *state, int offset, void *dest, int max_length);
+typedef int (*ucg_mpi_dt_pack_cb_t)(void *state, uint64_t offset, void *dest, uint64_t max_length);
 
 /**
  * @ingroup UCG_RTE_MPI
@@ -154,7 +145,7 @@ typedef int (*ucg_mpi_dt_pack_cb_t)(void *state, int offset, void *dest, int max
  * @param [in] count Number of elements to unpack in the buffer.
  * @return A state that is passed later to unpack().
  */
-typedef void* (*ucg_mpi_dt_start_unpack_cb_t)(void *dtype, void *buffer, int count);
+typedef void* (*ucg_mpi_dt_start_unpack_cb_t)(void *dtype, void *buffer, uint64_t count);
 
 /**
  * @ingroup UCG_RTE_MPI
@@ -166,7 +157,7 @@ typedef void* (*ucg_mpi_dt_start_unpack_cb_t)(void *dtype, void *buffer, int cou
  * @param [in] length Length to unpack.
  * @return 0 for Success, other for Fail
  */
-typedef int (*ucg_mpi_dt_unpack_cb_t)(void *state, int offet, void *src, int length);
+typedef int (*ucg_mpi_dt_unpack_cb_t)(void *state, uint64_t offset, void *src, uint64_t length);
 
 /**
  * @ingroup UCG_RTE_MPI

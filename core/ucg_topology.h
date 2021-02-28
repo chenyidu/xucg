@@ -8,7 +8,7 @@
 
 typedef ucg_topo_group {
     ucg_distance_t distance; /* The distance between every two members is less than this value. */
-    int count; /* Number of elements in handles */
+    uin32_t count; /* Number of elements in handles */
     uint64_t *handles; /* member handle */
 } ucg_topo_group_t;
 
@@ -37,7 +37,7 @@ ucs_status_t ucg_topo_get_distance(uint64_t handle1, uint64_t handle2);
  * @param [out] topo_groups Topology group.
  * @param [out] count Number of elements in topo_groups.
  */
-ucs_status_t ucg_topo_group_by_distance(ucg_group_h group, ucg_distance_t distance, ucg_topo_group_t *topo_groups, int *count);
+ucs_status_t ucg_topo_group_by_distance(ucg_group_h group, ucg_distance_t distance, ucg_topo_group_t *topo_groups, uin32_t *count);
 
 /**
  * @ingroup UCG_TOPOLOGY

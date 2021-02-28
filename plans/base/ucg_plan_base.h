@@ -84,8 +84,8 @@ typedef struct ucg_plan_action_peers {
  * buffers[i], lengths[i] are associated with peers[i].
  */
 typedef struct ucg_plan_action_buf {
-    uint8_t **buffers; 
-    int *lengths;
+    uint64_t *offsets; 
+    uint64_t *lengths;
 } ucg_plan_action_buf_t;
 
 /**

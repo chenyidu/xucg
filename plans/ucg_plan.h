@@ -9,7 +9,9 @@
 #include <ucg/api/ucg_dt.h>
 #include <ucs/datastruct/ptr_array.h>
 
+/* Forward declaration */
 typedef void ucg_plan_config_t;
+typedef struct ucg_plan ucg_plan_t;
 
 typedef enum ucg_plan_type {
     UCG_PLAN_TYPE_BCAST,
@@ -19,7 +21,7 @@ typedef enum ucg_plan_type {
 } ucg_plan_type_t;
 
 typedef struct ucg_plan_pool {
-    ucs_ptr_array_t plans;
+    ucs_ptr_array_t plans[UCG_PLAN_TYPE_MAX];
 } ucg_plan_pool_t;
 
 /**
@@ -66,7 +68,7 @@ typedef struct ucg_plan_barrier_params {
     /* Barrier has no special parameters. */
 } ucg_plan_barrier_params_t;
 
-typedef struct ucg_plan ucg_plan_t;
+ucs_status_t ucg_plan_pool_init(ucg_plan_pool_t *plan_pool);
 
 /**
  * @ingroup UCG_PLAN
@@ -92,4 +94,14 @@ ucs_status_t ucg_plan_config_read(const char *env_prefix,
                                   const char *filename, 
                                   ucg_plan_config_t *config);
 
+void ucg_plan_config_release(ucg_plan_config_t *config);
+
+ucs_status_t ucg_plan_config_modify(ucg_plan_config_t *config, 
+                                    const char *name, 
+                                    const char *value);                                 
+
+void ucg_plan_config_print(const ucg_plan_config_t *config, 
+                           FILE *stream, 
+                           const char *title, 
+                           ucs_config_print_flags_t print_flags);
 #endif
