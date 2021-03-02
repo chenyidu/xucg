@@ -83,7 +83,7 @@ aaaaaa = 0;
 # 接口约定
 | 接口 | 约定 | 备注 |
 | --- | --- | --- |
-| ucg_request_xxx_init() | 若集合操作存在root，那么需传入root rank而非root handle。 | 通过root rank可快速找到root handle，若传入root handle则生成plan时需要遍历Group handles得到root rank。 |
+| ucg_request_xxx_init() | 若集合操作存在root，那么需传入root rank而非root handle。 | 通过root rank可快速找到root handle，若传入root handle则生成plan时需要遍历group handles才能得到root rank。 |
 
 # 内部约定
 | 对象 | 约定 |
@@ -91,8 +91,6 @@ aaaaaa = 0;
 | plan clone| 基于Copy On Write。<br>1. 若集合操作完全一样，那么增加plan引用计数后返回当前plan。<br> 2. 若集合操作存在差异，那么创建plan，但复用phase。 |
 | phase type | 不能出现RECV_THEN_SEND的组合类型 |
 | config table | 为每个config table提供唯一的name和prefix，方便通过前缀比较找到对应的config table |
-
-
 
 # 功能设计
 ## datatype & op
