@@ -219,12 +219,12 @@ create phases:
         reduce.buffers[0] = UCG_BUFFER_HOLDER
 
 when recv data:
-    do_phase(phase, data):
+    execute(phase, data):
         switch(phase type)
             SEND:
-                 f send.buffers[0] == UCG_BUFFER_HOLDER
+                if send.buffers[0] == UCG_BUFFER_HOLDER
                     send.buffers[0] = data
-                ucg_channel_send(send.buffer[0])
+                ucg_eps_send(send.buffer[0])
                 break
             RECV:
                 if recv.buffers[0] != NULL
@@ -238,7 +238,7 @@ when recv data:
                 ucg_plan_phase_generic(phase, data)
                 break
         if phase->next != NULL
-            do_phase(phase->next, data)
+            execute(phase->next, data)
 ```
 
 # 思考
