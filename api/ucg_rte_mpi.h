@@ -22,11 +22,12 @@ typedef int (*ucg_mpi_world_rank_cb_t)(uint64_t handle);
  * @brief Get locations of all MPI processes.
  *
  * @param [out] locations Pointer to locations information.
- * @param [out] size Size of one location
- * @param [out] count Number of locations
+ * @param [out] size Size of one location.
+ * @param [out] count Number of locations.
+ * @param [out] id ID of locations.
  * @return 0-Success, Other-Fail.
  */
-typedef int (*ucg_mpi_locations_get_cb_t)(void **locations, uint64_t *size, uint64_t *count);
+typedef int (*ucg_mpi_locations_get_cb_t)(void **locations, uint64_t *size, uint64_t *count, uint64_t *id);
 
 /**
  * @ingroup UCG_RTE_MPI
