@@ -29,3 +29,8 @@ if x > y
     swap(x, y)
 the distance of x and y :=  distance[x*(N-1+N-x)/2 + y-x-1]
 ```
+
+## 共享内存
+使用shmget、shmat需要传递semid，而使用shm_open、mmap创建共享内存只需要提前规定文件名，因此使用shm_open、mmap。需要使用者传递节点内唯一的ID，保证shm_open的文件名唯一。
+1. 所有进程执行`sem_open(name, O_CREATE | O_EXCL, 066, 0)`，只有一个进程能创建成功，由该进程负责topology的初始化。
+2. 其余进程重新执行`sem_open(name, 0)`，并执行`sem_wait()`等待topology初始化完成。
