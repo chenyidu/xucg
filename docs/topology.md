@@ -35,7 +35,13 @@ the distance of x and y :=  distance[x*(N-1+N-x)/2 + y-x-1]
 1. 所有进程执行`sem_open(name, O_CREATE | O_EXCL, 066, 0)`，只有一个进程能创建成功，由该进程负责topology的初始化。
 2. 其余进程重新执行`sem_open(name, 0)`，并执行`sem_wait()`等待topology初始化完成。
 
+信号量和共享内存文件的清理：不关闭打开的句柄保持文件引用计数，并让最后一个感知topology初始化完成的进程删除文件，这样当进程全部退出时，操作系统会清理句柄，当引用计数变为0时，保证文件被删除。
+> 进程开始初始化topology的时机不一致，若随意一个进程删除文件，可能出现后续进入的进程无法打开共享内存文件。因此只能由最后的进程来删除文件。
+
+
 **前提**：所有进程都会调用`ucg_topo_init()`
 1. openmpi：MPI_Init()中会以`MPI_COMM_WORLD`使能ucg module，使能时会调用`ucg_group_create()`，因此将`ucg_topo_init()`放在`ucg_group_create()`中调用。
 2. 若迁移到其他运行环境，就要求先创建包含所有进程的group。
 > ucg component初始化时，`MPI_COMM_WORLD`还未初始化，因此无法放在`ucg_rte_init()`或`ucg_context_init()`中。
+
+
