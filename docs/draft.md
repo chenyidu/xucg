@@ -69,7 +69,7 @@ aaaaaa = 0;
 | --- | --- | --- |
 | phase | 执行计划中的一个阶段 | 一个plan有多个phase组成 |
 | ppool | plan pool，plan的管理者，可从中获取plan | 需要实现选择plan功能即最佳算法选择 |
-| eps | endpoints | 以复数形式来表明内部会存在多个ep，但外部无需感知，即内部隐藏了创建ucp ep、收发数据方式（short、bcopy、zcopy）、链路复用、am handler等等。 | 
+| channel | 通讯管道 | 创建ucp ep、收发数据方式（short、bcopy、zcopy）、链路复用、am handler等等。 | 
 | topology | 运行环境中所有进程的拓扑信息，主要是距离等信息。| 以MPI为例，保存MPI_COMM_WORLD内所有进程的拓扑信息 |
 > 以上为内部抽象
 
