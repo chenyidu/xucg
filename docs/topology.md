@@ -35,7 +35,7 @@ the distance of x and y :=  distance[x*(N-1+N-x)/2 + y-x-1]
 1. 所有进程执行`sem_open(name, O_CREATE | O_EXCL, 066, 0)`，只有一个进程能创建成功，由该进程负责topology的初始化。
 2. 其余进程重新执行`sem_open(name, 0)`，并执行`sem_wait()`等待topology初始化完成。
 
-**前提**：所有进程都会调用topology init
-1. openmpi：在MPI_Init()中在以`MPI_COMM_WORLD`使能ucg module，使能时会调用`ucg_group_create()`，因此topology init放在`ucg_group_create()`中。
-> ucg component初始化时，`MPI_COMM_WORLD`还未初始化，因此无法放在`ucg_rte_init()`或`ucg_context_init()`中。
+**前提**：所有进程都会调用`ucg_topo_init()`
+1. openmpi：MPI_Init()中会以`MPI_COMM_WORLD`使能ucg module，使能时会调用`ucg_group_create()`，因此将`ucg_topo_init()`放在`ucg_group_create()`中调用。
 2. 若迁移到其他运行环境，就要求先创建包含所有进程的group。
+> ucg component初始化时，`MPI_COMM_WORLD`还未初始化，因此无法放在`ucg_rte_init()`或`ucg_context_init()`中。
