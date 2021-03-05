@@ -18,7 +18,7 @@ typedef enum ucg_rte_type {
 
 typedef enum ucg_group_params_field {
     UCG_GROUP_PARAMS_UCP_WORKER = UCS_BIT(0),
-    UCG_GROUP_PARAMS_GROUP = UCS_BIT(1),
+    UCG_GROUP_PARAMS_MEMBERS = UCS_BIT(1),
 } ucg_group_params_field_t;
 
 /**
@@ -56,9 +56,9 @@ typedef struct ucg_group_params {
     ucp_worker_h ucp_worker;
     
     struct {
-        int count; /* Number of element in the handles */
-        uint64_t *handles; /* Array of user-defined process handle */
-        int my_pos; /* My position in the handles array */
+        int count; /* Number of element in the mh array */
+        uint64_t *mh; /* Array of user-defined member handle */
+        int my_rank; /* My position in the handles array */
     } members;
 } ucg_group_params_t;
 
