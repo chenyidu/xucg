@@ -112,16 +112,16 @@ header = reserved_bit << 52 | coll_type << 44 | src_rank << 20 | group_id;
 
 1. ucx提供包的有序传递，先发先到
 2. request按plan phase有序执行
-3. 收发两端的算法一致，可以保证收发对应。基于1和2，接收端只需从消息中匹配`group_id`和`src_rank`就可以找到本端的请求
+3. 收发两端的算法一致，可以保证收发对应。基于1和2，接收端只需从消息中匹配`group_id`和`src_rank`就可以找到本端的接收请求
 4. `coll_type`用于缩小查找范围。
 
+**channel感知request结构**
+
 ## plan
-plan细分为
-- plan template：一个plan template代表一类算法实现的集合操作，包含plan的元数据和功能函数，会按需注册到context的ppool中，供其实例化plan object。
-- plan object：基于plan template实例化的plan对象，包含plan的配置信息、集合操作参数（成员个数、数据）、phase等。
+plan注册到全局ppool中，初始注册的plan为空plan，只包含元数据信息。克隆的plan包含配置信息、集合操作参数（成员个数、数据）、phase等。
 
 ### 简化实现的假设
-实现plan时，若只认为数据是连续的，可以降低开发难度。但这有一个问题：对于非连续datatype，算法以Byte为最小数据单位，但datatype中的最小数据单位可能大于Byte，那么算法分割数据时，在实际发送时就无法pack指定的数据长度。
+实现plan时，若只认为数据是连续的，可以降低开发难度。但这有一个问题：对于非连续datatype，若算法以Byte为最小数据单位，但datatype中的最小数据单位可能大于Byte，那么算法分割数据时，在实际发送时就无法pack指定的数据长度。
 
 问题转换成为如何设定分割数据的最小单位
 1. 如果以datatype为单位，那么就不会出现问题，但可能出现count=1，但datatype很大的情况
