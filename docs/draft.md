@@ -76,9 +76,8 @@ aaaaaa = 0;
 # 名词约定
 | 名词 | 描述 | 备注 |
 | --- | --- | --- |
-| handle | User创建Group时指定的成员标识，要求全局唯一。全局唯一的意思是该成员在不同group中使用同一个handle。 | 以MPI运行环境为例，handle可以是`ompi_proc_t*`或`MPI_COMM_WORLD rank`。全局标识可以提供一些关键资源的复用率，直接传入全局标识省去了在使用时再转换的步骤。 |
+| mh | member handle，User创建Group时指定的成员标识，要求全局唯一。全局唯一的意思是该成员在不同group中使用同一个handle。 | 以MPI运行环境为例，handle可以是`ompi_proc_t*`或`MPI_COMM_WORLD rank`。链路等资源是全局复用的，直接传入全局标识省去了在使用时再转换的步骤。 |
 | rank | 成员在group handles数组中的下标。 | 实现plan算法时可以使用`[0, member_count)`之间的数字来代表成员，简化算法实现。 |
-| config table | 配置表 | 可通过配置项修改程序行为 |
 
 # 接口约定
 | 接口 | 约定 | 备注 |
@@ -90,7 +89,7 @@ aaaaaa = 0;
 | --- | --- |
 | plan clone| 基于Copy On Write。<br>1. 若集合操作完全一样，那么增加plan引用计数后返回当前plan。<br> 2. 若集合操作存在差异，那么创建plan，但复用phase。 |
 | phase type | 不能出现RECV_THEN_SEND的组合类型 |
-| config table | 为每个config table提供唯一的name和prefix，方便通过前缀比较找到对应的config table |
+| config table | 为每个config table提供唯一的name和prefix，方便通过前缀比较找到对应的config table。 |
 
 # 功能设计
 ## datatype & op
