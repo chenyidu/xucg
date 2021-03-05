@@ -16,7 +16,7 @@ typedef enum ucg_plan_type {
     UCG_PLAN_TYPE_BCAST,
     UCG_PLAN_TYPE_ALLREDUCE,
     UCS_PLAN_TYPE_BARRIER,
-    UCG_PLAN_TYPE_MAX = UCG_PLAN_TYPE_MASK + 1,  /* */
+    UCG_PLAN_TYPE_MAX = UCS_MASK(UCG_AM_HEADER_PLAN_TYPE_BITS),  /* Type value can't exceed the maximum value that UCG_AM_HEADER_PLAN_TYPE_BITS can represent. */
 } ucg_plan_type_t;
 
 typedef struct ucg_plan_pool {
