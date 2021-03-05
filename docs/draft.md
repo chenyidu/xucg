@@ -84,6 +84,9 @@ aaaaaa = 0;
 | --- | --- | --- |
 | ucg_request_xxx_init() | 若集合操作存在root，那么需传入root rank而非root handle。 | 通过root rank可快速找到root handle，若传入root handle则生成plan时需要遍历group handles才能得到root rank。 |
 
+# 整体流程
+![](./images/arch.png)
+
 # 内部约定
 | 对象 | 约定 |
 | --- | --- |
