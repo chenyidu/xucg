@@ -115,8 +115,6 @@ header = reserved_bit << 52 | coll_type << 44 | src_rank << 20 | group_id;
 3. 收发两端的算法一致，可以保证收发对应。基于1和2，接收端只需从消息中匹配`group_id`和`src_rank`就可以找到本端的请求
 4. `coll_type`用于缩小查找范围。
 
-channel内部不感知头结构，通过类似tag matching的动作查找request。
-
 ## plan
 plan细分为
 - plan template：一个plan template代表一类算法实现的集合操作，包含plan的元数据和功能函数，会按需注册到context的ppool中，供其实例化plan object。
