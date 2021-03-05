@@ -3,23 +3,37 @@
  * See file LICENSE for terms.
  */
 
-#ifndef UCG_PLAN_DERIVED_H_
-#define UCG_PLAN_DERIVED_H_
+#ifndef UCG_PLAN_BASE_H_
+#define UCG_PLAN_BASE_H_
 
-#include "ucg_plan.h"
+#include <ucg/plans/ucg_plan.h>
 #include <ucs/type/status.h>
 #include <ucs/sys/preprocessor.h>
 #include <ucs/config/parser.h>
 
 #include <stdint.h>
 
-/* Action buffer holder need to replaced by real buffer, must be different from NULL. */
+/* Assertions which are checked in compile-time. 
+ * TODO: move to appropriate file. 
+ */
+#define UCG_STATIC_ASSERT(_cond) typedef int UCS_PP_APPEND_UNIQUE_ID(assert)[(_cond)?1:-1]
+
+/* Indicates that the buffer can't be read or written. */
+#define UCG_BUFFER_INVALID ((void*)0)
+
+/* Indicates that the buffer should be replaced by incoming buffer. */
 #define UCG_BUFFER_HOLDER ((void*)1)
 
-/* Register a plan template */
-#define UCG_PLAN_REGISTER_TEMPLATE(_template)\
+/* Default maximum number of peers */
+#define UCG_DEFAULT_MAX_PEERS_NUM 64
+
+/* The ID after 10000 is reserved for x plan. */
+#define UCG_PLAN_ID_MAX 10000
+
+/* Register a plan */
+#define UCG_PLAN_REGISTER(_plan)\
     UCS_STATIC_INIT { \
-        ucg_plan_register_template(&_template); \
+        ucg_plan_register(&_plan); \
     }
 
 /**
@@ -27,66 +41,60 @@
  * @brief Algorigthm id for broadcast.
  */
 typedef enum ucg_plan_bcast_id {
-    UCG_PLAN_BCAST_ID_KTREE, 
+    UCG_PLAN_BCAST_ID_KTREE, /* knomial tree */
+    UCG_PLAN_BCAST_ID_MAX,
 } ucg_plan_bcast_id_t;
+UCG_STATIC_ASSERT(UCG_PLAN_BCAST_ID_MAX <= UCG_PLAN_ID_MAX);
 
 /**
- * @ingroup UCG_PLAN_ACTION
- * @brief  Action type.
+ * @ingroup UCG_PLAN
+ * @brief Algorigthm id for broadcast.
+ */
+typedef enum ucg_plan_allreduce_id {
+    UCG_PLAN_ALLREDUCE_ID_RD,  /* recursive doubling */
+    UCG_PLAN_ALLREDUCE_ID_MAX,
+} ucg_plan_allreduce_id_t;
+UCG_STATIC_ASSERT(UCG_PLAN_ALLREDUCE_ID_MAX <= UCG_PLAN_ID_MAX);
+
+/**
+ * @ingroup UCG_PLAN_PHASE
+ * @brief Phase type.
  *
  * At present, The way of SEND, RECV and REDUCE are performed is very clear. 
  * Keep a generic type for some special actions.
  */        
-typedef enum ucg_plan_action_type {
-    UCG_PLAN_ACTION_TYPE_SEND,
-    UCG_PLAN_ACTION_TYPE_RECV,
-    UCG_PLAN_ACTION_TYPE_REDUCE, 
-    UCG_PLAN_ACTION_TYPE_GENERIC,
-    UCG_PLAN_ACTION_TYPE_MAX,
-} ucg_plan_action_type_t;
+typedef enum ucg_plan_phase_type {
+    UCG_PLAN_PHASE_TYPE_SEND,
+    UCG_PLAN_PHASE_TYPE_RECV,
+    UCG_PLAN_PHASE_TYPE_REDUCE, 
+    UCG_PLAN_PHASE_TYPE_GENERIC,
+    UCG_PLAN_PHASE_TYPE_MAX,
+} ucg_plan_phase_type_t;
 
 /**
- * @ingroup UCG_PLAN_ACTION
- * @brief Parameters for performing action.
+ * @ingroup UCG_PLAN_PHASE
+ * @brief Receive and transmit peers in a phase.
  */
-typedef struct ucg_plan_action_params {
-    struct {
-        uint8_t *data; 
-        int length;
-    } recv;
-} ucg_plan_action_params_t;
-
-typedef struct ucg_plan_action ucg_plan_action_t;
-
-/**
- * @ingroup UCG_PLAN_ACTION
- * @brief Generic action routine.
- */
-typedef ucs_status_t (*ucg_plan_action_generic_cb_t)(ucg_plan_action_t *action, 
-                                                     ucg_plan_action_params_t *params);
-
-/**
- * @ingroup UCG_PLAN_ACTION
- * @brief Action peers for sending and receiving.
- */
-typedef struct ucg_plan_action_peers {
+typedef struct ucg_plan_phase_peer {
     int count; /* Number of peers */
-    int *peers; /* Relative member ID which needs to be converted to handle 
-                   for communication. */
-} ucg_plan_action_peers_t;
+    union {
+        int ranks[UCG_DEFAULT_MAX_PEERS_NUM]; /* Need to be converted to member handle for communication. */ 
+        int *dyn_ranks; /* When count is larger than UCG_DEFAULT_MAX_PEERS_NUM, allocate from the heap  */
+    };
+} ucg_plan_phase_peer_t;
 
 /**
- * @ingroup UCG_PLAN_ACTION
- * @brief Buffer structure for action.
+ * @ingroup UCG_PLAN_PHASE
+ * @brief Buffers used in a phase.
  *
- * Action buffer is related to action peers, so the number of elements in 
- * buffers is equal to ucg_plan_action_peers_t::count.In other words, 
- * buffers[i], lengths[i] are associated with peers[i].
+ * Phase buffer is related to phase peers.In other words, 
+ * buffer[i], length[i] are associated with ranks[i].
  */
-typedef struct ucg_plan_action_buf {
-    uint64_t *offsets; 
+typedef struct ucg_plan_phase_buf {
+    int count; /* Number of peers */
+    uint64_t *buffers; 
     uint64_t *lengths;
-} ucg_plan_action_buf_t;
+} ucg_plan_phase_buf_t;
 
 /**
  * @ingroup UCG_PLAN_ACTION
@@ -111,7 +119,7 @@ typedef struct ucg_plan_action_infra {
  * @ingroup UCG_PLAN_ACTION
  * @brief Base structure of plan action.
  */
-struct ucg_plan_action {
+struct ucg_plan_phase {
     ucg_plan_action_infra_t *infra;
     union {
        ucg_plan_action_buf_t send;
@@ -121,54 +129,7 @@ struct ucg_plan_action {
     ucg_plan_action_t* next;
 };
 
-/**
- * @ingroup UCG_PLAN
- * @brief Plan's attribution.
- *
- * At present, Selecting plan will use these information.
- */
-typedef struct ucg_plan_attr {
-    /* TODO: Depending on selection strategy. */
-} ucg_plan_attr_t;
-
 typedef struct ucg_plan ucg_plan_t;
-/**
- * @ingroup UCG_PLAN
- * @brief Check Whether a plan is available.
- * 
- * A plan template can instantiate different plans based on specific 
- * configuration and parameters. We need to know whether the plan is available.
- * 
- * @param [in] config Configuration to instantiate a plan.
- * @param [in] params Parameters to instantiate a plan.
- * @return 1-is available, 0-not available.
- */
-typedef int (*ucg_plan_is_available_cb_t)(ucg_plan_config_t *config, 
-                                          ucg_plan_params_t *params);
-
-/**
- * @ingroup UCG_PLAN
- * @brief Get plan's attribution.
- *
- * @param [in] config Configuration to instantiate a plan.
- * @param [in] params Parameters to instantiate a plan. 
- * @param [out] attr Plan's attribution. 
- */
-typedef ucs_status_t (*ucg_plan_query_cb_t)(ucg_plan_config_t *config, 
-                                            ucg_plan_params_t *params,
-                                            ucg_plan_attr_t* attr);
-
-/**
- * @ingroup UCG_PLAN
- * @brief Initialize a plan object.
- *
- * @param [in] config Configuration to instantiate a plan.
- * @param [in] params Parameters to instantiate a plan. 
- * @param [out] plan Initialized plan object.
- */
-typedef ucs_status_t (*ucg_plan_init_cb_t)(ucg_plan_config_t *config,
-                                           ucg_plan_params_t *params, 
-                                           ucg_plan_t **plan);
 
 /**
  * @ingroup UCG_PLAN
@@ -179,9 +140,8 @@ typedef ucs_status_t (*ucg_plan_init_cb_t)(ucg_plan_config_t *config,
  * @param [in] params Parameters.
  * @param [out] new_plan New plan object.
  */
-typedef ucs_status_t (*ucg_plan_clone_cb_t)(ucg_plan_t *plan, 
-                                            ucg_plan_params_t *params, 
-                                            ucg_plan_t **new_plan);
+typedef ucg_plan_t* (*ucg_plan_clone_cb_t)(ucg_plan_t *plan, 
+                                           ucg_plan_params_t *params);
 
 /**
  * @ingroup UCG_PLAN
