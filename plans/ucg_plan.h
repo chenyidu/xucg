@@ -9,7 +9,6 @@
 #include <ucg/api/ucg_dt.h>
 #include <ucs/datastruct/ptr_array.h>
 
-/* Forward declaration */
 typedef void ucg_plan_config_t;
 typedef struct ucg_plan ucg_plan_t;
 
@@ -17,7 +16,7 @@ typedef enum ucg_plan_type {
     UCG_PLAN_TYPE_BCAST,
     UCG_PLAN_TYPE_ALLREDUCE,
     UCS_PLAN_TYPE_BARRIER,
-    UCG_PLAN_TYPE_MAX,
+    UCG_PLAN_TYPE_MAX = UCG_PLAN_TYPE_MASK + 1,  /* */
 } ucg_plan_type_t;
 
 typedef struct ucg_plan_pool {
