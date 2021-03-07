@@ -8,20 +8,119 @@
 
 #include <ucg/api/ucg_dt.h>
 #include <ucs/datastruct/ptr_array.h>
+#include <ucs/config/parser.h>
 
-typedef void ucg_plan_config_t;
+/* Maximum number of elements in buffer vector. */
+#define UCG_PLAN_PHASE_BUFFER_VEC_MAX_NUM 10
+
+/* Maximum number of peers in a phase. */
+#define UCG_PLAN_PHASE_PEERS_MAX_NUM 64
+
+typedef struct ucg_plan_phase ucg_plan_phase_core_t;
 typedef struct ucg_plan ucg_plan_t;
+
+/**
+ * @ingroup UCG_PLAN
+ * @brief Clone a plan object.
+ *
+ * The new plan has same configuration with the origin plan.
+ * @param [in] plan Origin plan object.
+ * @param [in] params Parameters.
+ */
+typedef ucg_plan_t* (*ucg_plan_clone_cb_t)(ucg_plan_t *plan, 
+                                           ucg_plan_params_t *params,
+                                           );
+
+/**
+ * @ingroup UCG_PLAN
+ * @brief Release a plan returned by init() or clone()
+ */
+typedef void (*ucg_plan_release_cb_t)(ucg_plan_t *plan);
 
 typedef enum ucg_plan_type {
     UCG_PLAN_TYPE_BCAST,
     UCG_PLAN_TYPE_ALLREDUCE,
     UCS_PLAN_TYPE_BARRIER,
-    UCG_PLAN_TYPE_MAX = UCS_MASK(UCG_AM_HEADER_PLAN_TYPE_BITS),  /* Type value can't exceed the maximum value that UCG_AM_HEADER_PLAN_TYPE_BITS can represent. */
+    UCG_PLAN_TYPE_MAX,
 } ucg_plan_type_t;
 
-typedef struct ucg_plan_pool {
-    ucs_ptr_array_t plans[UCG_PLAN_TYPE_MAX];
-} ucg_plan_pool_t;
+/**
+ * @ingroup UCG_PLAN
+ * @brief Phase action.
+ */        
+typedef enum ucg_plan_phase_action {
+    UCG_PLAN_PHASE_ACTION_NOP = 0,
+    UCG_PLAN_PHASE_ACTION_SEND,
+    UCG_PLAN_PHASE_ACTION_RECV,
+    UCG_PLAN_PHASE_ACTION_REDUCE, 
+    UCG_PLAN_PHASE_ACTION_COPY,
+    UCG_PLAN_PHASE_ACTION_FORWARD, 
+    UCG_PLAN_PHASE_ACTION_MAX,
+} ucg_plan_phase_action_t;
+
+typedef struct ucg_plan_phase_buffer {
+    uint8_t *first;
+    uint8_t *second;
+    uint64_t length;
+} ucg_plan_phase_buffer_t;
+
+typedef struct ucg_plan_phase_buffer_vec {
+    int count;
+    ucg_plan_phase_buffer_t buffers[UCG_PLAN_PHASE_BUFFER_VEC_MAX_NUM];
+} ucg_plan_phase_buffer_vec_t;
+
+typedef struct ucg_plan_phase_peers {
+    int count;
+    int ranks[UCG_PLAN_PHASE_PEERS_MAX_NUM]; 
+} ucg_plan_phase_peers_t;
+
+/**
+ * @ingroup UCG_PLAN_ACTION
+ * @brief The little changed part of a phase.
+ */
+typedef struct ucg_plan_phase_core {
+    int refcount; /* Reference count */
+    /* actions[i] corresponds to peers[i] */
+    ucg_plan_phase_action_t actions[UCG_PLAN_PHASE_ACTION_MAX];
+    ucg_plan_phase_peers_t peers[UCG_PLAN_PHASE_ACTION_MAX];
+} ucg_plan_phase_core_t;
+
+/**
+ * @ingroup UCG_PLAN_ACTION
+ * @brief Plan phase.
+ */
+typedef struct ucg_plan_phase {
+    ucg_plan_phase_core_t *core;
+    ucg_plan_phase_t *next;
+    /* actions[i] corresponds to vectors[i] */
+    ucg_plan_phase_buffer_vec_t vectors[UCG_PLAN_PHASE_ACTION_MAX];
+} ucg_plan_phase_t;
+
+/**
+ * @ingroup UCG_PLAN
+ * @brief The little changed part of a plan.
+ */
+typedef struct ucg_plan_core {
+    int refcount; 
+    ucg_plan_type_t type;
+    int id;
+    const char *desc;
+    ucs_config_global_list_entry_t config;
+
+    ucg_plan_clone_cb_t clone;
+    ucg_plan_release_cb_t release;
+} ucg_plan_core_t;
+
+/**
+ * @ingroup UCG_PLAN
+ * @brief Collective operation execution plan.
+ */
+typedef struct ucg_plan {
+    int refcount;
+    ucg_plan_core_t *core;
+    int phase_cnt;
+    ucg_plan_phase_t *phase; /* The head phase. */
+} ucg_plan_t;
 
 /**
  * @ingroup UCG_PLAN
@@ -29,6 +128,7 @@ typedef struct ucg_plan_pool {
  */
 typedef struct ucg_plan_params {
     ucg_plan_type_t type;
+    void *config;
     int count; /* Number of elements in handles. */
     uint64_t *handles; /* Handles of communication members. */
 } ucg_plan_params_t;
@@ -60,47 +160,12 @@ typedef struct ucg_plan_allreduce_params {
 
 /**
  * @ingroup UCG_PLAN
- * @brief Structure of barrier plan parameters.
- */
-typedef struct ucg_plan_barrier_params {
-    ucg_plan_params_t super;
-    /* Barrier has no special parameters. */
-} ucg_plan_barrier_params_t;
-
-ucs_status_t ucg_plan_pool_init(ucg_plan_pool_t *plan_pool);
-
-/**
- * @ingroup UCG_PLAN
- * @brief Select a plan from plan pool.
+ * @brief Select a plan.
  *
- * @param [in] plan_pool Plan pool.
  * @param [in] params Parameters.
- * @param [out] plan Selected plan.
  */
- ucs_status_t ucg_plan_select(ucg_plan_pool_t *plan_pool, 
-                              ucg_plan_params_t *params, 
-                              ucg_plan_t **plan);
+ ucg_plan_t *ucg_plan_get(ucg_plan_params_t *params);
 
-/**
- * @ingroup UCG_PLAN
- * @breif Release a plan
- *
- * @param [in] plan Plan returned by ucg_plan_select().
- */
-void ucg_plan_release(ucg_plan_t *plan);
+ ucs_status_t ucg_plan_put(ucg_plan_t *plan);
 
-ucs_status_t ucg_plan_config_read(const char *env_prefix, 
-                                  const char *filename, 
-                                  ucg_plan_config_t *config);
-
-void ucg_plan_config_release(ucg_plan_config_t *config);
-
-ucs_status_t ucg_plan_config_modify(ucg_plan_config_t *config, 
-                                    const char *name, 
-                                    const char *value);                                 
-
-void ucg_plan_config_print(const ucg_plan_config_t *config, 
-                           FILE *stream, 
-                           const char *title, 
-                           ucs_config_print_flags_t print_flags);
 #endif

@@ -28,16 +28,16 @@
     |   ├── ucg_plan_base.h                  # plan内部基类头文件
     |   └── ...
     ├── recursive_doubling                # 以算法类型命名的目录
-    |   ├── rd_allreduce_plan.c              # 基于该类算法实现的Allreduce plan
-    |   ├── rd_barrier_plan.c                # 基于该类算法实现的Barrier plan  
+    |   ├── rd_allreduce.c              # 基于该类算法实现的Allreduce plan
+    |   ├── rd_barrier.c                # 基于该类算法实现的Barrier plan  
     |   ├── rd.c                             # 算法实现
     |   └── rd.h
     └── ...                           
 ```
-目录结构与UCX其他组件的风格保持一致，如api、core、base。
+目录结构与UCX其他组件的风格保持一致，如api、core。
 - plans目录为UCG特有的目录，用于保存集合操作算法和其生成的plan。
-- - 子目录以算法名命名，同类的变种算法可放在同一目录下，比如recursive_doubling下可以有RD、Topo-Aware RD等。以该类算法实现的集合操作，以算法名缩写开头，以plan结尾，中间为集合操作名。
-> 考虑过以集合操作命名子目录，但考虑到多种集合操作可能使用同一种算法，存在跨集合操作目录调用算法的问题，不符合直觉。
+- - 子目录以算法名命名，同类的变种算法可放在同一目录下，比如recursive_doubling下可以有RD、Topo-Aware RD等。以该类算法实现的集合操作，以算法名缩写开头，后接集合操作名。
+> 考虑过以集合操作命名子目录，但多种集合操作可能使用同一种算法，存在跨集合操作目录调用算法的问题。
 
 # 编码风格
 使用UCX编码风格，除了对齐等号、变量，因为这样的做法由一个弊端是会在修改中增加一些无效操作，增加review成本，比如
@@ -65,7 +65,7 @@ aaaaaa = 0;
 
 | 名字 | 描述 | 备注 |
 | --- | --- | --- |
-| phase | 执行计划中的一个阶段 | 一个plan有多个phase组成 |
+| phase | 执行计划中的一个阶段 | 一个plan由多个phase组成 |
 | ppool | plan pool，plan的管理者，可从中获取plan | 需要实现选择plan功能即最佳算法选择 |
 | channel | 通讯管道 | 创建ucp ep、收发数据方式（short、bcopy、zcopy）、链路复用、am handler等等。 | 
 | topology | 运行环境中所有进程的拓扑信息，主要是距离等信息。| 以MPI为例，保存MPI_COMM_WORLD内所有进程的拓扑信息 |
@@ -85,10 +85,82 @@ aaaaaa = 0;
 # 整体流程
 ![](./images/arch.png)
 
+# 场景分析
+基于场景分析，确定合适的数据结构和处理流程
+
+## bcast
+![](./images/bcast.png)
+- 0
+```
+ucg_request_start(req)
+    ...
+    for action in req.phase.actions
+        if action == send
+            req->tag = make_tag(group_id, my_rank, coll_type)
+            for peer,buffer in req.phase.send_peers,req.phase.send_buffers
+                sendto(peer, tag, buffer)
+```
+- 1
+```
+ucg_request_start(req)
+    ...
+    // 从plan的起始phase开始执行
+    req.phase = ucg_plan_phase_begin(req.plan)
+    // 初始化当前phase的action状态
+    action_cnt = req.phase.actions.count
+    for(i = 0; i < action_cnt; ++i)
+        req.action_state[i] = START
+    // 执行action
+    for(i = 0; i < action_cnt; ++i)
+        action = req.phase.actions[i]
+        if req.action_state[i] == DONE
+            continue
+        switch(action)
+            case receive
+                // 查找是否存在匹配的消息
+                req->tag = make_tag(group_id, receive_peers[0], coll_type)
+                msg_list = msg_tag_match(req->tag)
+                if msg_list == NULL
+                    insert_unexp_req(req->tag, req)
+                    return INPROGRESS
+                // 更新已收到的数据长度
+                req.receive_lengths[0] += msg_len
+                if (req.receive_lengths[0] == req.phase.receive_lengths[0])
+                    req.action_state[i] = DONE
+            case copy
+                if 
+                for msg in msg_list
+                    copy(copy_buffers[0].rece_buf + copied_len, msg, msg_len)
+                    req.copied_len[0] += msg_len
+                if req.copied_len[0] == copy_buffers[0].len
+                    req.action_state[i] = DONE
+            
+    for(i = 0; i < action_cnt; ++i)
+        if req.action_state[i] != DONE
+            retrun INPROGRESS       
+    return OK
+
+am_handler(msg)
+    ...
+    req = req_tag_match(msg->tag)
+    if req == NULL
+        insert_unexp_msg(msg->tag, msg)
+        return
+    assert(req.phase.actions[0] == receive)
+    for action in req.phase.actions[1:]
+        switch(action)
+            case receive
+                ...
+            case copy
+                copy(copy_buffers[0].rece_buf, msg, msg_len)
+                copied_len += msg_len
+
+```
+
 # 功能设计
 ## datatype & op
 datatype和op分为预定义和用户自定义两类，其中内部预定义可以细分为多种类型。
-提供统一的接口，内部隐藏预定义类型和用户自定义类型的处理，对于用户自定义的类型调用用户注册的RTE函数。
+提供统一的接口，隐藏预定义类型和用户自定义类型的处理，对于用户自定义的类型调用用户注册的RTE函数。
 
 ## group
 创建group时可以将group按照拓扑划分subgroup，如构造node leader subgroup，这可以避免后续算法中反复计算node leader subgroup。
@@ -111,7 +183,7 @@ header = reserved_bit << 52 | coll_type << 44 | src_rank << 20 | group_id;
 
 **channel感知request结构**
 
-## plan
+## ppool & plan
 plan注册到全局ppool中，初始注册的plan为空plan，只包含元数据信息。克隆的plan包含配置信息、集合操作参数（成员个数、数据）、phase等。
 
 ### 简化实现的假设

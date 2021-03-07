@@ -3,63 +3,85 @@
  * See file LICENSE for terms.
  */
  
-#include "ucg_plan.h"
-#include "ucg_plan_derived.h"
+#include <ucg/plans/ucg_plan.h>
+#include <ucg/plans/ucg_plan_impl.h>
 #include <ucs/debug/assert.h>
 
-typedef struct ucg_plan_template_mgr {
-    int initialized;
-    ucs_ptr_array_t plan_templates[UCG_PLAN_TYPE_MAX];
-} ucg_plan_template_mgr_t;
+static ucg_ppool_t global_ppool;
 
-typedef struct ucg_plan_pool {
-    ucs_ptr_array_t plans;
-} ucg_plan_pool_t;
-
-static ucg_plan_template_mgr_t g_pt_mgr = {.initialized = 0};
-
-void ucg_plan_register_template(ucg_plan_template_t *pt)
+static void ucg_ppool_init(ucg_ppool_t *ppool)
 {
-    if (!g_pt_mgr.initialized) {
-        int i;
-        for (i = 0; i < UCG_PLAN_TYPE_MAX; ++i) {
-            ucs_ptr_array_init(&g_pt_mgr.plan_templates[i], "plan template");
-        }
-        g_pt_mgr.initialized = 1;
+    kh_init(ucg_ppool);
+
+    ppool->caches.max_num = 200;
+    ucs_list_head_init(&ppool->caches.global_list);
+    for (int i = 0; i < UCG_PLAN_TYPE_MAX; ++i) {
+         ucs_list_head_init(&ppool->caches.type_list[i]);
     }
-    ucs_ptr_array_insert(&g_pt_mgr.plan_templates[pt->type], pt);
+    global_ppool.inited = 1;
     return;
 }
 
-ucs_status_t ucg_plan_config_read((const char *env_prefix, 
-                                  const char *filename,
-                                  void **config)
+static ucg_plan_t* ucg_ppool_search_plan(ucg_ppool_t *ppool,
+                                         ucg_plan_params_t *params)
 {
-
 
 }
 
-ucs_status_t ucg_plan_config_read(const char *env_prefix, 
-                                  const char *filename,
-                                  ucs_plan_config_t **config)
+static ucg_plan_t* ucg_ppool_create_plan(ucg_ppool_t *ppool,
+                                         ucg_plan_params_t *params)
 {
-    ucs_ptr_array_t *config_array = ucs_malloc(sizeof(ucs_ptr_array_t));
-
-    int i;
-    int j;
-    ucg_plan_template_t *pt;
-    for (i = 0; i < UCG_PLAN_TYPE_MAX; ++i) {
-        ucs_ptr_array_for_each (pt, j, g_pt_mgr.plan_templates[i]) {
-            ucs_plan_config_t *config;
-            pt->config.read(env_prefix, filename, &config);
-        }
+    int id = ucg_ppool_select_algo(ppool, params);
+    if (id < 0) {
+        ucs_error("No algorithm is available.");
+        return NULL;
     }
-    
+
+    khiter_t iter = kh_get(ucg_ppool, &ppool->plans, 
+                           ucg_ppool_hash_key(params->type, id));
+    ucs_assert(iter != kh_end(&ppool->plans));
+    ucg_plan_t *plan = kh_value(&ppool->plans, iter);
+    return ucg_plan_clone(plan, params);
 }
 
-ucs_status_t ucg_plan_select(ucg_plan_pool_t *plan_pool, 
-                             ucg_plan_params_t *params, 
-                             ucg_plan_t **plan)
+static uint64_t ucg_ppool_hash_key(int type, int id)
 {
+    return (uint64_t)type << 32| id;
+}
 
+static uint64_t ucg_plan_hash_key(ucg_plan_t *plan)
+{
+    return ucg_ppool_hash_key(plan->core->type, plan->core->id);
+}
+
+void ucg_plan_register(ucg_plan_t *plan)
+{
+    if (!global_ppool.inited) {
+        ucg_ppool_init(&global_ppool);
+    }
+    ucs_assert(kh_end(&global_ppool.plans) == kh_get(ucg_ppool, 
+                                                     &global_ppool.plans, 
+                                                     ucg_plan_hash_key(plan)));
+    kh_put(ucg_ppool, &global_ppool.plans, ucg_plan_hash_key(plan), plan);
+    return;
+}
+
+ucg_plan_t* ucg_plan_get(ucg_plan_params_t *params)
+{
+    ucs_assert(global_ppool.inited);
+    ucg_plan_t *plan = NULL;
+    plan = ucg_ppool_search_plan(&global_ppool, params);
+    if (plan != NULL) {
+        return plan;
+    }
+
+    return ucg_ppool_create_plan(&global_ppool, params);
+}
+
+ucs_status_t ucg_plan_put(ucg_plan_t *plan)
+{
+    ucs_assert(global_ppool.inited);
+    ucs_assert(plan->refcount > 0);
+    --plan->refcount;
+    return;
 }
