@@ -66,6 +66,62 @@ void ucg_plan_register(ucg_plan_t *plan)
     return;
 }
 
+ucg_plan_t* ucg_plan_allocate(uint32_t size)
+{
+    // TODO: use memory pool in global_ppool
+    ucg_plan_t *plan = ucs_calloc(size, "ucg_plan_t");
+    if (plan == NULL) {
+        return NULL;
+    }
+    plan->refcount = 1;
+    return;
+}
+
+void ucg_plan_release(ucg_plan_t *plan, ucg_plan_cleanup_cb_t cleanup)
+{
+    ucs_assert(plan != NULL && plan->refcount > 0);
+    if (--plan->refcount == 0) {
+        if (cleanup != NULL) {
+            cleanup(plan);
+        }
+        ucs_free(plan);
+    }
+    return;
+}
+
+ucg_plan_phase_t* ucg_plan_phase_allocate(int with_core)
+{
+    // TODO: use memory pool
+    ucg_plan_phase_t *phase = (ucg_plan_phase_t *)ucs_calloc(sizeof(ucg_plan_phase_t), "ucg_plan_phase_t");
+    if (phase == NULL) {
+        return NULL;
+    }
+    if (!with_core) {
+        return phase;
+    }
+    
+    phase->core = (ucg_plan_phase_core_t *)ucs_calloc(sizeof(ucg_plan_phase_core_t), "ucg_plan_phase_core_t");
+    if (phase->core == NULL) {
+        ucs_free(phase);
+        return NULL;
+    }
+    phase->core->refcount = 1;
+    return phase;
+}
+
+void ucg_plan_phase_release(ucg_plan_phase_t *phase, ucg_plan_phase_cleanup_cb_t cleanup)
+{
+    ucs_assert(phase != NULL && phase->core->refcount > 0);
+    if (--phase->core->refcount == 0) {
+        ucs_free(phase->core);
+    }
+    if (cleanup != NULL) {
+        cleanup(phase);
+    }
+    ucs_free(phase);
+    return;
+}
+
 ucg_plan_t* ucg_plan_get(ucg_plan_params_t *params)
 {
     ucs_assert(global_ppool.inited);

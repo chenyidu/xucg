@@ -5,7 +5,7 @@
 #ifndef UCG_H_
 #define UCG_H_
 
-#include <ucg/api/ucg_mpi.h>
+#include <ucg/api/ucg_rte_mpi.h>
 
 /**
  * @ingroup UCG_RTE
@@ -40,6 +40,12 @@ typedef struct ucg_context_params {
     uint64_t field_mask;
 } ucg_context_params_t;
 
+typedef struct ucg_group_members {
+    int self; /* My position in the handles array */
+    int count; /* Number of element in the mh array */
+    uint64_t *mh; /* Array of user-defined member handle */
+} ucg_group_members_t;
+
 /**
  * @ingroup UCG_GROUP
  * @brief Creation parameters for the UCG group.
@@ -54,12 +60,7 @@ typedef struct ucg_group_params {
     
     /* Specified worker, cannot release until the group is destroyed */
     ucp_worker_h ucp_worker;
-    
-    struct {
-        int count; /* Number of element in the mh array */
-        uint64_t *mh; /* Array of user-defined member handle */
-        int my_rank; /* My position in the handles array */
-    } members;
+    ucg_group_members_t members;
 } ucg_group_params_t;
 
 /**
@@ -179,7 +180,7 @@ ucs_status_t ucg_rte_init(ucg_rte_params_t *params);
  * @return Error code as defined by @ref ucs_status_t
  */
 ucs_status_t ucg_context_init(const ucg_context_params_t *params, 
-                              const ucg_context_config_t *config,
+                              const ucg_config_t *config,
                               ucg_context_h *context);
 /**
  * @ingroup UCG_CONTEXT

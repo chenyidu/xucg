@@ -26,7 +26,6 @@ typedef enum ucg_dt_op_id {
 
 typedef struct ucg_datatype {
     ucg_dt_type_id_t id;
-    uint8_t is_contig;
     void *dt_ptr;
 } ucg_datatype_t;
 

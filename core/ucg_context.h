@@ -18,7 +18,6 @@ typedef struct ucg_config {
 
 typedef struct ucg_context {
     ucg_config_t *config;
-    ucg_ppool_t pp;
 } ucg_context_t;
 
 #endif 

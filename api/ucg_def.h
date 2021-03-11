@@ -25,7 +25,7 @@ typedef struct ucg_context* ucg_context_h;
 
 /**
  * @ingroup UCG_CONFIG
- * @brief UCG configuration descriptor
+ * @brief UCG context configuration descriptor
  */
 typedef struct ucg_config ucg_config_t;
 

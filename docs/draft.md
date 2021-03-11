@@ -85,79 +85,7 @@ aaaaaa = 0;
 # 整体流程
 ![](./images/arch.png)
 
-# 场景分析
-基于场景分析，确定合适的数据结构和处理流程
-
-## bcast
-![](./images/bcast.png)
-- 0
-```
-ucg_request_start(req)
-    ...
-    for action in req.phase.actions
-        if action == send
-            req->tag = make_tag(group_id, my_rank, coll_type)
-            for peer,buffer in req.phase.send_peers,req.phase.send_buffers
-                sendto(peer, tag, buffer)
-```
-- 1
-```
-ucg_request_start(req)
-    ...
-    // 从plan的起始phase开始执行
-    req.phase = ucg_plan_phase_begin(req.plan)
-    // 初始化当前phase的action状态
-    action_cnt = req.phase.actions.count
-    for(i = 0; i < action_cnt; ++i)
-        req.action_state[i] = START
-    // 执行action
-    for(i = 0; i < action_cnt; ++i)
-        action = req.phase.actions[i]
-        if req.action_state[i] == DONE
-            continue
-        switch(action)
-            case receive
-                // 查找是否存在匹配的消息
-                req->tag = make_tag(group_id, receive_peers[0], coll_type)
-                msg_list = msg_tag_match(req->tag)
-                if msg_list == NULL
-                    insert_unexp_req(req->tag, req)
-                    return INPROGRESS
-                // 更新已收到的数据长度
-                req.receive_lengths[0] += msg_len
-                if (req.receive_lengths[0] == req.phase.receive_lengths[0])
-                    req.action_state[i] = DONE
-            case copy
-                if 
-                for msg in msg_list
-                    copy(copy_buffers[0].rece_buf + copied_len, msg, msg_len)
-                    req.copied_len[0] += msg_len
-                if req.copied_len[0] == copy_buffers[0].len
-                    req.action_state[i] = DONE
-            
-    for(i = 0; i < action_cnt; ++i)
-        if req.action_state[i] != DONE
-            retrun INPROGRESS       
-    return OK
-
-am_handler(msg)
-    ...
-    req = req_tag_match(msg->tag)
-    if req == NULL
-        insert_unexp_msg(msg->tag, msg)
-        return
-    assert(req.phase.actions[0] == receive)
-    for action in req.phase.actions[1:]
-        switch(action)
-            case receive
-                ...
-            case copy
-                copy(copy_buffers[0].rece_buf, msg, msg_len)
-                copied_len += msg_len
-
-```
-
-# 功能设计
+# 设计想法
 ## datatype & op
 datatype和op分为预定义和用户自定义两类，其中内部预定义可以细分为多种类型。
 提供统一的接口，隐藏预定义类型和用户自定义类型的处理，对于用户自定义的类型调用用户注册的RTE函数。
@@ -235,7 +163,6 @@ type为集合操作类型，id为该集合操作下分配的plan序号（每种t
 
 从10000开始后续序号作为X plan的预留id。X plan通过二进制方式(libucgx.so)提供，在运行时通过UCS_MODULE_FRAMEWORK_LOAD动态加载。
 
-## ppool
 ### 选择plan
 ~~1. plan Pool通过plan的`is_available()`函数获取支持集合操作的plan。`is_available()`不止判断集合操作的参数、成员个数等，还需要判断依赖的环境是否就绪，比如Topology不可用时，topo-aware的plan不能使用。这由plan开发者保证。
 2. plan Pool通过plan的`query()`函数获取信息，根据选择策略计算分数，从多个可用的plan里选择最佳plan。~~
@@ -252,11 +179,9 @@ type为集合操作类型，id为该集合操作下分配的plan序号（每种t
 常见的决策点：group成员个数是否大于或小于某个值、成员个数是否为2次幂、op是否满足交换律、消息大小是否大于或小于某个值等。
 
 ### 复用plan
-> 更新认知：一个实例化的plan是包含集合操作所有信息的，如通讯对象、通讯数据等。
-
 真正的写时复制实现起来比较麻烦，因此提前将plan分为constant部分和mutable部分。对于constant部分通过指针引用，对于mutable部分通过constant部分里的指定函数初始化。phase同理。
 
-## 可配置
+## 配置
 目前有两类配置
 1. 指定集合操作算法的配置，该config table定义在ucg_context.c中。
 2. 指定plan算法细节的配置，该config table定义在plan的源文件中。
@@ -273,56 +198,8 @@ type为集合操作类型，id为该集合操作下分配的plan序号（每种t
 
 保证config_bundles中plan config的顺序与plan template数组的顺序一样，保证可以快速找到对应的plan template，并以该config实例化一个plan。
 
-## phase执行框架
-对于Reduce phase，通常是先Recv再Reduce的，此时Recv phase是无需做真正的内存拷贝的，可以直接使用UCT层的接收buffer进行Reduce phase。还有先Recv再Send的情况即单纯转发，此时可以直接将UCT buffer的内容发送出去。
-```
-do_phase(phase, data)
-{
-    ...
-}
 
-struct phase_buf {
-    uint8_t **buffers;
-};
-1. 先Recv再Reduce
-create phases:
-    recv phase:
-        recv.buffers[0] = NULL; 
-    reduce phase:
-        reduce.buffers[0] = UCG_BUFFER_HOLDER; // 第一个操作数
-        reduce.buffers[1] = target; // 第二个操作数
-
-2. 先Recv再Send
-create phases:
-    recv phase:
-        recv.buffers[0] = recv_buffer
-    send phase:
-        reduce.buffers[0] = UCG_BUFFER_HOLDER
-
-when recv data:
-    execute(phase, data):
-        switch(phase type)
-            SEND:
-                if send.buffers[0] == UCG_BUFFER_HOLDER
-                    send.buffers[0] = data
-                ucg_eps_send(send.buffer[0])
-                break
-            RECV:
-                if recv.buffers[0] != NULL
-                    copy data to recv buffer
-                break
-            REDUCE:
-                if reduce.buffers[0] == UCG_BUFFER_HOLDER
-                    reduce.buffers[0] = data
-                reduce(reduce.buffers[0], reduce.buffers[1])
-            GENETIC:
-                ucg_plan_phase_generic(phase, data)
-                break
-        if phase->next != NULL
-            execute(phase->next, data)
-```
-
-# 思考
+# 附录
 ## planner是否有存在的必要？—— 否
 不同planner包含着不同的plan，一旦划分planner，那么一个planner中的plan依赖于另一个planner里的plan是相当违反直觉的，但实际中一个新算法会依赖原先的一些基础算法，而基础算法通常都位于builtin planner。因此就有了这个问题。
 
@@ -337,6 +214,48 @@ when recv data:
 ## plan是否需要感知到Request？—— 否
 Request可以通过plan提供的接口去执行plan，并将执行状态记录在Request中，因此plan无需感知Request。plan并不需要直接操作Request，并在其中记录特定的信息。
 
+## 复用plan的判断逻辑
+复用程度
+1. SAME：plan级别复用
+2. SIMILAR：phase级别复用，部分成员可能需要重新创建部分phase
+3. UNEQUAL：复用plan core，所有phase都需重新创建
 
+除了SAME，由ppool直接复用，其他两种情况由plan内部自行处理。
+
+### bcast - tree
+1. SAME：参数完全一样
+2. SIMILAR：config相同 && ((plan为topo-aware && mh相同) || (plan非topo-aware && mh个数相同))
+3. UNEQUAL: 除1和2之外的所有情况
+
+> mh相同隐含着my_rank相同
+
+1. config不同或mh个数，会影响整棵tree的生成，因此无法复用。ppool并不关注config具体内容，而是逐字节比较。
+2. 若plan为topo-aware，每个member的位置是生成tree的一个条件，因此mh不同时位置信息发生变化，判断plan不可复用
+3. 若plan非topo-aware，那么所有member都是等价的，只有部分my_rank发生变化的member需要重新计算。例子
+```
+request 1: root = 0, mh1 = {A,B,C,D}
+   0             A
+  / \           / \
+ 1   2   ==>   B   C
+     |             |
+     3             D
+
+request 2: root = 0, mh2 = {B,C,E,D}，
+   0             B
+  / \           / \
+ 1   2   ==>   C   E
+     |             |
+     3             D
+
+C在mh1中的my_rank=2，而在mh2中的my_rank=1，在request 1中计算得到的tree node{up=0,down=3}与request 2实际需要的{up=0}不一样，需要重新计算
+D在mh1中的my_rank=3与在mh2中的my_rank一样，因此无需重新计算
+
+request 3: root = 1, mh3 = {A,B,C,D} --switch root--> mh3 = {B,A,C,D}，A和B的my_rank需要对应的变化保持一致
+   0             B
+  / \           / \
+ 1   2   ==>   A   C
+     |             |
+     3             D
+```
 
 

@@ -97,13 +97,23 @@ typedef void (*ucg_mpi_addr_put_cb_t)(ucp_address_t *addr);
 
 /**
  * @ingroup UCG_RTE_MPI
- * @brief Start a packing request.
+ * @brief Compare datatype.
  *
  * @param [in] ldtype Left-hand MPI datatype.
  * @param [in] rdtype Right-hand MPI datatype.
- * @return 0 non-contig, 1 contig
+ * @return 0-not same, 1-same
  */
 typedef int (*ucg_mpi_dt_is_same_cb_t)(void *ldtype, void *rdtype);
+
+/**
+ * @ingroup UCG_RTE_MPI
+ * @brief Get the size of datatype.
+ *
+ * @param [in] dtype Left-hand MPI datatype.
+ * @param [out] size True size of the datatype.
+ * @return 0 non-contig, 1 contig
+ */
+typedef int (*ucg_mpi_dt_size_cb_t)(void *dtype, uint64_t *size);
 
 /**
  * @ingroup UCG_RTE_MPI
@@ -196,7 +206,8 @@ typedef struct ucg_rte_mpi {
  
     struct {
         ucg_mpi_dt_is_same_cb_t is_same;
-     
+        ucg_mpi_dt_size_cb_t size;
+
         ucg_mpi_dt_start_pack_cb_t start_pack;
         ucg_mpi_dt_packed_size_cb_t packed_size;
         ucg_mpi_dt_pack_cb_t pack;
