@@ -41,9 +41,9 @@ typedef struct ucg_context_params {
 } ucg_context_params_t;
 
 typedef struct ucg_group_members {
-    int self; /* My position in the handles array */
+    ucg_rank_t self; /* My position in the handles array */
     int count; /* Number of element in the mh array */
-    uint64_t *mh; /* Array of user-defined member handle */
+    ucg_mh_t *mh; /* Array of user-defined member handle */
 } ucg_group_members_t;
 
 /**

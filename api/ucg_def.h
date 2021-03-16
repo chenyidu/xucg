@@ -38,6 +38,26 @@ typedef struct ucg_config ucg_config_t;
   */
 typedef struct ucg_group* ucg_group_h;
 
+/**
+ * @ingroup UCG_GROUP
+ * @brief Globally unique member handle.
+ * 
+ * One member can be in different group, and global uniqueness means that no 
+ * matter which group the member is in, its handle is the same. 
+ */
+typedef uint64_t ucg_mh_t;
+
+/**
+ * @ingroup UCG_GROUP
+ * @brief The position of the member in the current group.
+ * 
+ * e.g. 
+ * 1. Group members: [a,b,c,d], the rank of a in this group is 0
+ * 2. Group members: [e,f,g,a], the rank of a in this group is 3
+ * a,b,c,d,e,f,g is ucg_mh_t. 
+ */
+typedef int ucg_rank_t;
+
  /**
   * @ingroup UCG_REQUEST
   * @brief UCG collective operation request

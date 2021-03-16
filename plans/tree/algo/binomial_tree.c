@@ -2,46 +2,45 @@
 #include <ucs/debug/assert.h>
 
 ucs_status_t ucg_plan_btree_left(const ucg_plan_btree_params_t *params, 
-                                 ucg_plan_btree_node_t *node)
+                                 ucg_plan_tree_node_t *node)
 {
     ucs_assert(params != NULL && node->child != NULL);
     
-    uint32_t self = params->self;
-    uint32_t root = params->root;
+    ucg_rank_t self = params->self;
+    ucg_rank_t root = params->root;
     uint32_t size = params->size;
     ucs_assert(self < size && root < size);
 
     /* Adjust the position of members and put root at the front, 
        {left, root, right} to {root, right, left} */
-    uint32_t nself = (self - root + size) % size;
+    ucg_rank_t vself = (self - root + size) % size;
 
     uint32_t mask = 1;
-    for (uint32_t i = nself; i > 0; i >>= 1) {
+    for (uint32_t i = vself; i > 0; i >>= 1) {
         mask <<= 1;
     }
 
     /* find father on my left hand. */
-    uint32_t remote = 0;
     if (root == self) {
         node->father_cnt = 0;
     } else {
-        node->father = (nself ^ (mask >> 1) + root) % size;
+        node->father = (vself ^ (mask >> 1) + root) % size;
         node->father_cnt = 1;
     }
 
     /* find child on my right hand. */
-    uint32_t tmp = 0;
+    ucg_rank_t vrank = 0;
     uint32_t cnt = 0;
     uint32_t max_cnt = node->child_cnt;
     while(mask < size) {
-        tmp = nself ^ mask;
-        if (tmp >= size) {
+        vrank = vself ^ mask;
+        if (vrank >= size) {
             break;
         }
-        node->child[cnt++] = (tmp + root) % size;
         if (cnt == max_cnt) {
             return UCS_ERR_BUFFER_TOO_SMALL;
         }
+        node->child[cnt++] = (vrank + root) % size;
         mask <<= 1;
     }
     node->child_cnt = cnt;
@@ -50,18 +49,18 @@ ucs_status_t ucg_plan_btree_left(const ucg_plan_btree_params_t *params,
 
 
 ucs_status_t ucg_plan_btree_right(const ucg_plan_btree_params_t *params, 
-                                  ucg_plan_btree_node_t *node)
+                                  ucg_plan_tree_node_t *node)
 {
     ucs_assert(params != NULL &&  node->child != NULL);
 
-    uint32_t self = params->self;
-    uint32_t root = params->root;
+    ucg_rank_t self = params->self;
+    ucg_rank_t root = params->root;
     uint32_t size = params->size;
     ucs_assert(self < size && root < size);
 
      /* Adjust the position of members and put root at the front, 
        {left, root, right} to {root, right, left} */
-    uint32_t nself = (self - root + size) % size;
+    ucg_rank_t vself = (self - root + size) % size;
     if (root == self) {
         node->father_cnt = 0;
     }
@@ -69,19 +68,20 @@ ucs_status_t ucg_plan_btree_right(const ucg_plan_btree_params_t *params,
     uint32_t cnt = 0;
     uint32_t max_cnt = node->child_cnt;
     uint32_t mask = 1;
-    uint32_t tmp = 0;
+    ucg_rank_t vrank = 0;
     while (mask < size) {
-        tmp = nself ^ mask;
-        if (tmp < nself) {
-            node->father = (tmp + root) % size;
+        vrank = vself ^ mask;
+        if (vrank < vself) {
+            // The first rank on my left hand is my father node.
+            node->father = (vrank + root) % size;
             node->father_cnt = 1;
             break;
         }
-        if (tmp < size) {
-            node->child[cnt++] = (tmp + root) % size;
+        if (vrank < size) {
             if (cnt == max_cnt) {
                 return UCS_ERR_BUFFER_TOO_SMALL;
             }
+            node->child[cnt++] = (vrank + root) % size;
         }
         mask <<= 1;
     }

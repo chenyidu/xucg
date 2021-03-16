@@ -15,7 +15,7 @@
  * @param [in] mh MPI process handle.
  * @return MPI world rank.
  */
-typedef int (*ucg_mpi_world_rank_cb_t)(uint64_t mh);
+typedef int (*ucg_mpi_world_rank_cb_t)(ucg_mh_t mh);
 
 /**
  * @ingroup UCG_RTE_MPI
@@ -85,7 +85,7 @@ typedef int (*ucg_mpi_op_is_commute_cb_t)(void *op);
  * @papram [out] addr_len Address length.
  * @return 0-Success, Other-Fail.
  */
-typedef int (*ucg_mpi_addr_get_cb_t)(uint64_t mh, ucp_address_t **addr, uint32_t *addr_len);
+typedef int (*ucg_mpi_addr_get_cb_t)(ucg_mh_t mh, ucp_address_t **addr, uint32_t *addr_len);
 
 /**
  * @ingroup UCG_RTE_MPI

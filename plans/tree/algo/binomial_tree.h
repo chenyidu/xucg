@@ -6,19 +6,14 @@
 #ifndef UCG_PLAN_BTREE_H_
 #define UCG_PLAN_BTREE_H_
 
+#include "tree.h"
+#include <ucg/api/ucg_def.h>
 #include <ucs/type/status.h>
 #include <stdint.h>
 
-typedef struct ucg_plan_btree_node {
-    int father;
-    int father_cnt;
-    int *child;
-    int child_cnt; /* Should be initialized to indicate the max size of down. */
-} ucg_plan_btree_node_t;
-
 typedef struct ucg_plan_btree_params {
-    int self;
-    int root;
+    ucg_rank_t self;
+    ucg_rank_t root;
     uint32_t size;
 } ucg_plan_btree_params_t;
 
@@ -38,7 +33,7 @@ typedef struct ucg_plan_btree_params {
  * @param [inout] node
  */
 ucs_status_t ucg_plan_btree_left(const ucg_plan_btree_params_t *params, 
-                                 ucg_plan_btree_node_t *node);
+                                 ucg_plan_tree_node_t *node);
 
 /**
  * @ingroup UCG_PLAN
@@ -56,5 +51,5 @@ ucs_status_t ucg_plan_btree_left(const ucg_plan_btree_params_t *params,
  * @param [inout] node
  */
 ucs_status_t ucg_plan_btree_right(const ucg_plan_btree_params_t *params, 
-                                  ucg_plan_btree_node_t *node);
+                                  ucg_plan_tree_node_t *node);
 #endif

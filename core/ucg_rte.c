@@ -23,6 +23,8 @@ ucs_status_t ucg_rte_init(ucg_rte_params_t *params)
         default:
             return UCS_ERR_UNSUPPORTED;
     }
+
+
     return UCS_OK;
 }
 
