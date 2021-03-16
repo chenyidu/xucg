@@ -1,65 +1,65 @@
 #include <ucg/plans/tree/algo/binomial_tree.h>
+#include <ucg/plans/tree/algo/knomial_tree.h>
 #include <ucg/plans/base/action.h>
 #include <ucg/plans/base/plan.h>
 #include <ucg/plans/ucg_ppool_impl.h>
 #include <ucs/sys/compiler_def.h>
 
-static ucg_plan_t* ucg_plan_btree_bcast_clone(ucg_plan_t *plan,
-                                              ucg_plan_params_t *params,
-                                              ucg_plan_clone_advice_t advice);
 
-static void ucg_plan_btree_bcast_destroy(ucg_plan_t *plan);
+typedef ucs_status_t (*ucg_plan_calc_tree_node_cb_t)(ucg_rank_t root, 
+                                                     ucg_rank_t self, 
+                                                     uint32_t size, 
+                                                     ucg_plan_tree_node_t *node);
 
-typedef struct ucg_plan_btree_bcast_config {
-    uint32_t group_size; 
-} ucg_plan_btree_bcast_config_t;
+typedef struct ucg_plan_tree_bcast {
+    ucg_plan_bcast_t super;
+    ucg_plan_calc_tree_node_cb_t calc_tree_node;
+} ucg_plan_tree_bcast_t;
 
-
-
-static ucs_config_field_t ucg_plan_btree_bcast_config_table[] = {
-    {"GROUP_SIZE", "8", 
-     "Specifies the threshold for the root switch method.\n"
-     "<= threshold: Swap locations of new and old root.\n"
-     "> threshold : New root forward data to new root.",
-     ucs_offsetof(ucg_plan_btree_bcast_config_t, group_size), UCS_CONFIG_TYPE_UINT},
-    NULL,
-};
-
-static ucg_plan_core_t g_btree_bcast_core = {
-    .type = UCG_PLAN_TYPE_BCAST,
-    .id = UCG_PLAN_BCAST_ID_BTREE,
-    .desc = "Non topo-aware binomial tree broadcast",
-    .flags = UCG_PLAN_CAP_FLAG_SWITCH_ROOT,
-    .config_entry = {
-        .name = "btree bcast", 
-        .prefix = "BTREE_BCAST",
-        .table = ucg_plan_btree_bcast_config_table,
-        .size = sizeof(ucg_plan_btree_bcast_config_t),
-    },
-    .clone = ucg_plan_btree_bcast_clone,
-    .destroy = ucg_plan_btree_bcast_destroy,
-};
-
-static ucg_plan_bcast_t g_btree_bcast = {
-    .super = {
-        .refcount = 1, /* Never release. */
-        .core = &g_btree_bcast_core,
-    },
-};
-UCG_PPOOL_REGISTER_PLAN(g_btree_bcast);
-
-static ucs_status_t ucg_plan_btree_bcast_calc_tree_node(ucg_rank_t root, 
-                                                        ucg_rank_t self, 
-                                                        uint32_t size, 
-                                                        ucg_plan_tree_node_t *tree_node)
+ucs_status_t ucg_plan_tree_add_fanout_actions(ucg_plan_t *plan,
+                                              ucg_plan_tree_node_t *node)
 {
-    ucg_plan_btree_params_t btree_params = {
-        .self = self,
-        .root = root,
-        .size = size,
-    };
-    // For bcast, btree_left has better parallelism.
-    return ucg_plan_btree_left(&btree_params, &tree_node);
+    ucs_status_t status = UCS_OK;
+    ucs_assert(node->father_cnt == 0 || node->father_cnt == 1);
+    if (node->father_cnt == 1) {
+        status = ucg_plan_create_and_append_action(plan, 
+                                                   UCG_PLAN_ACTION_TYPE_RECV, 
+                                                   &node->father, 1);
+        if (status != UCS_OK) {
+            goto clear_actions;
+        }
+    }
+    
+    int child_cnt = node->child_cnt;
+    if (child_cnt > 0) {
+        ucg_plan_action_type_t type = node->father_cnt == 0 ? UCG_PLAN_ACTION_TYPE_SEND : UCG_PLAN_ACTION_TYPE_FORWARD;
+        status = ucg_plan_create_and_append_action(plan, type, node->child, child_cnt);
+        if (status != UCS_OK) {
+            goto clear_actions;
+        }
+    }
+
+    if (node->father_cnt == 1) {
+        /* Let COPY after FORWARD, so that COPY and FORWARD may be in parallel.
+           FORWARD use NIC, COPY use CPU. */
+        status = ucg_plan_create_and_append_action(plan, 
+                                                   UCG_PLAN_ACTION_TYPE_RECV, 
+                                                   &node->father, 1);
+        if (status != UCS_OK) {
+            goto clear_actions;
+        }
+    }
+
+    return UCS_OK;
+clear_actions:
+    ucg_plan_release_actions(plan);
+    return status;
+}
+
+static void ucg_plan_tree_bcast_cleanup(ucg_plan_t *plan)
+{
+    ucg_plan_cleanup(plan);
+    return;
 }
 
 static ucs_status_t ucg_plan_tree_add_fanout_actions(ucg_plan_tree_node_t *node, 
@@ -124,12 +124,11 @@ static ucs_status_t ucg_plan_btree_bcast_create_actions(ucg_rank_t root,
     return ucg_plan_tree_add_fanout_actions(&node, action_head);
 }
 
-static ucs_status_t ucg_plan_btree_bcast_init(ucg_plan_bcast_t *plan, 
-                                              ucg_plan_bcast_params_t *params)
+static ucs_status_t ucg_plan_tree_bcast_init(ucg_plan_bcast_t *plan, 
+                                             ucg_plan_bcast_params_t *params)
 {
     ucs_status_t status = UCS_OK;
 
-    plan->super.core = &g_btree_bcast_core;
     ucs_list_head_init(&plan->super.action_list);
 
     // In order to compare when reusing, the parameters are saved.
@@ -145,7 +144,7 @@ static ucs_status_t ucg_plan_btree_bcast_init(ucg_plan_bcast_t *plan,
                                                  members->count, 
                                                  &plan->super.action_list);
     if (status != UCS_OK) {
-        ucs_error("Fail to craete actions.", ucs_status_string(status));
+        ucs_error("Fail to craete actions %s.", ucs_status_string(status));
         return status;
     }
     // Setup actions
@@ -157,26 +156,27 @@ static ucs_status_t ucg_plan_btree_bcast_init(ucg_plan_bcast_t *plan,
     return UCS_OK;
 }
 
-static ucg_plan_t* ucg_plan_btree_bcast_new(ucg_plan_bcast_t *plan,
-                                                      ucg_plan_bcast_params_t *params)
+static ucg_plan_t* ucg_plan_tree_bcast_new(ucg_plan_tree_bcast_t *plan,
+                                           ucg_plan_bcast_params_t *params)
 {
     ucs_status_t status = UCS_OK;
-    ucg_plan_bcast_t *new_plan = NULL;
+    ucg_plan_tree_bcast_t *new_plan = NULL;
 
-    if (ucs_list_is_empty(&plan->super.action_list)) {
+    if (ucs_list_is_empty(&plan->super.super.action_list)) {
         // The plan is not initialized, use its space.
-        new_plan = ucg_plan_obtain(&plan->super);
+        new_plan = (ucg_plan_tree_bcast_t *)ucg_plan_obtain(&plan->super.super);
     } else {
-        new_plan = ucg_plan_allocate(sizeof(ucg_plan_bcast_t));
+        new_plan = (ucg_plan_tree_bcast_t *)ucg_plan_allocate(sizeof(ucg_plan_tree_bcast_t));
         if (new_plan == NULL) {
             ucs_error("Fail to allocate plan object.");
             return NULL;
         }
+        new_plan->super.super.core = plan->super.super.core;
     }
 
-    status = ucg_plan_btree_bcast_init(new_plan, params);
+    status = ucg_plan_tree_bcast_init(new_plan, params);
     if (status != UCS_OK) {
-        ucg_plan_release(new_plan, ucg_plan_bcast_cleanup);
+        ucg_plan_release(new_plan, ucg_plan_tree_bcast_cleanup);
         return NULL;
     }
     return &new_plan->super;
@@ -245,30 +245,30 @@ static ucg_plan_t* ucg_plan_btree_bcast_cow(ucg_plan_bcast_t* plan,
     return &new_plan->super;
 }
 
-ucg_plan_t* ucg_plan_btree_bcast_clone(ucg_plan_t *bplan, 
-                                       ucg_plan_params_t *bparams,
-                                       ucg_plan_clone_advice_t advice)
+ucg_plan_t* ucg_plan_tree_bcast_clone(ucg_plan_t *bplan, 
+                                      ucg_plan_params_t *bparams,
+                                      ucg_plan_clone_advice_t advice)
 {
     if (advice == UCG_PLAN_CLONE_ADVICE_SAME) {
         return ucg_plan_obtain(bplan);
     }
     
-    ucg_plan_bcast_t *plan = ucs_container_of(bplan, ucg_plan_bcast_t, super);
-    ucg_plan_bcast_params_t *params = ucs_container_of(bparams, ucg_plan_bcast_params_t, super);
+    ucg_plan_tree_bcast_t *plan = ucs_derived_of(bplan, ucg_plan_tree_bcast_t);
+    ucg_plan_bcast_params_t *params = ucs_derived_of(bparams, ucg_plan_bcast_params_t);
     if (advice ==  UCG_PLAN_CLONE_ADVICE_UNEQUAL) {
-        return ucg_plan_btree_bcast_new(plan, params);
+        return ucg_plan_tree_bcast_new(plan, params);
     }
 
     if (advice == UCG_PLAN_CLONE_ADVICE_SIMILAR) {
-        return ucg_plan_btree_bcast_cow(plan, params);
+        return ucg_plan_tree_bcast_cow(plan, params);
     }
     // Should never be here.
     ucs_assert(0);
     return NULL;
 }
 
-static void ucg_plan_btree_bcast_destroy(ucg_plan_t *bplan)
+void ucg_plan_tree_bcast_destroy(ucg_plan_t *plan)
 {
-    ucg_plan_release(bplan, ucg_plan_btree_bcast_cleanup);
+    ucg_plan_release(plan, ucg_plan_tree_bcast_cleanup);
     return;
 }

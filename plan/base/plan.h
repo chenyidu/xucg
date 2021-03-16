@@ -68,7 +68,7 @@ typedef ucg_plan_t* (*ucg_plan_clone_cb_t)(ucg_plan_t *plan,
  * 
  * @note clone() and destroy() need to be used in pairs.
  */
-typedef void (*ucg_plan_destroy_cb_t)(ucg_plan_t *plan);
+typedef void (*ucg_plan_release_cb_t)(ucg_plan_t *plan);
 
 /**
  * @ingroup UCG_PLAN
@@ -109,7 +109,7 @@ typedef struct ucg_plan_core {
     ucs_config_global_list_entry_t config_entry;
 
     ucg_plan_clone_cb_t clone;
-    ucg_plan_destroy_cb_t destroy;
+    ucg_plan_release_cb_t destroy;
 } ucg_plan_core_t;
 
 /**
@@ -125,7 +125,6 @@ typedef struct ucg_plan {
         ucg_dt_state_t *unpack_state;
     } dt;
 
-    ucg_plan_params_t params;
     ucs_list_link_t action_list;
 } ucg_plan_t;
 
@@ -190,7 +189,11 @@ void ucg_plan_cleanup(ucg_plan_t *plan);
  * @ingroup UCG_PLAN
  * @brief Clone parameters (deep copy).
  */
-ucs_status_t ucg_plan_clone_params(ucg_plan_t *plan, ucg_plan_params_t *params);
+ucs_status_t ucg_plan_clone_params(ucg_plan_t *plan, 
+                                   ucg_plan_params_t *src, 
+                                   ucg_plan_params_t *dst);
+
+void ucg_plan_destroy_params(ucg_plan_params_t *params);
 
 ucs_status_t ucg_plan_create_and_append_action(ucg_plan_t *plan, 
                                                ucg_plan_action_type_t type, 
