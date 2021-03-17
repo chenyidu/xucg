@@ -36,35 +36,16 @@ typedef struct ucg_plan_params {
 
 /**
  * @ingroup UCG_PLAN
- * @brief User specified parameters. 
- */
-typedef struct ucg_plan_bcast_user_params {
-    void *buffer; 
-    int count; 
-    ucg_datatype_t *dtype;
-    int root;
-} ucg_plan_bcast_user_params_t;
-
-/**
- * @ingroup UCG_PLAN
  * @brief Structure of broadcast plan parameters.
  */
 typedef struct ucg_plan_bcast_params {
     ucg_plan_params_t super;
-    ucg_plan_bcast_user_params_t user;
-} ucg_plan_bcast_params_t;
-
-/**
- * @ingroup UCG_PLAN
- * @brief User specified parameters. 
- */
-typedef struct ucg_plan_allreduce_user_params {
-    const void *sendbuf;
-    void *recvbuf;
-    int count;
+    // Here are the user specified parameters.
+    void *buffer; 
+    int count; 
     ucg_datatype_t *dtype;
-    ucg_op_t *op;
-} ucg_plan_allreduce_user_params_t;
+    int root;
+} ucg_plan_bcast_params_t;
 
 /**
  * @ingroup UCG_PLAN
@@ -72,7 +53,12 @@ typedef struct ucg_plan_allreduce_user_params {
  */
 typedef struct ucg_plan_allreduce_params {
     ucg_plan_params_t super;
-    ucg_plan_allreduce_user_params_t user;
+    // Here are the user specified parameters.
+    const void *sendbuf;
+    void *recvbuf;
+    int count;
+    ucg_datatype_t *dtype;
+    ucg_op_t *op;
 } ucg_plan_allreduce_params_t;
 
 /**

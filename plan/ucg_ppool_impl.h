@@ -21,6 +21,7 @@ typedef struct ucg_plan ucg_plan_t;
     UCS_STATIC_INIT { \
         ucg_ppool_register_plan(&_plan); \
     }
+    UCS_CONFIG_REGISTER_TABLE_ENTRY(&(_plan).core->config_entry)
 
 typedef struct ucg_plan_lru_node {
     ucg_plan_t *plan;

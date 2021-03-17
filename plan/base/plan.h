@@ -3,11 +3,11 @@
  * See file LICENSE for terms.
  */
  
-#ifndef UCG_PLAN_H_
-#define UCG_PLAN_H_
+#ifndef UCG_BASE_PLAN_H_
+#define UCG_BASE_PLAN_H_
 
 #include "action.h"
-#include <ucg/plans/ucg_ppool.h>
+#include <ucg/plan/ucg_ppool.h>
 #include <ucs/sys/preprocessor.h>
 
 /* Replaced by incoming message. */
