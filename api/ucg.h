@@ -235,7 +235,7 @@ ucs_status_t ucg_request_bcast_init(ucg_group_h group,
                                     void *buffer, 
                                     int count, 
                                     ucg_datatype_t *dtype, 
-                                    int root,
+                                    ucg_rank_t root,
                                     ucg_request_h *request);
 
 /**

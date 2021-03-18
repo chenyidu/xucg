@@ -68,7 +68,7 @@ typedef ucg_plan_t* (*ucg_plan_clone_cb_t)(ucg_plan_t *plan,
  * 
  * @note clone() and destroy() need to be used in pairs.
  */
-typedef void (*ucg_plan_release_cb_t)(ucg_plan_t *plan);
+typedef void (*ucg_plan_destroy_cb_t)(ucg_plan_t *plan);
 
 /**
  * @ingroup UCG_PLAN
@@ -105,11 +105,11 @@ typedef struct ucg_plan_core {
     ucg_plan_type_t type;
     int id;
     const char *desc;
-    uint64_t flags;
+    uint64_t cap_flags; /**< see ucg_plan_cap_flag_t. */
     ucs_config_global_list_entry_t config_entry;
 
     ucg_plan_clone_cb_t clone;
-    ucg_plan_release_cb_t destroy;
+    ucg_plan_destroy_cb_t destroy;
 } ucg_plan_core_t;
 
 /**
@@ -119,13 +119,12 @@ typedef struct ucg_plan_core {
 typedef struct ucg_plan {
     ucg_plan_core_t *core;
     int refcount;
+    ucs_list_link_t action_list;
 
     struct {
         ucg_dt_state_t *pack_state;
         ucg_dt_state_t *unpack_state;
     } dt;
-
-    ucs_list_link_t action_list;
 } ucg_plan_t;
 
 /**
@@ -206,24 +205,6 @@ static inline void ucg_plan_append_action(ucg_plan_t *plan,
     return;
 };
 
-/**
- * @ingroup UCG_PLAN
- * @brief Clone a plan.
- */
-static inline ucg_plan_t* ucg_plan_clone(ucg_plan_t *plan, 
-                                         ucg_plan_params_t *params,
-                                         ucg_plan_clone_advice_t advice)
-{
-    return plan->core->clone(plan, params, advice);
-}
-
-/**
- * @ingroup UCG_PLAN
- * @brief Destroy a plan.
- */
-static inline void ucg_plan_destroy(ucg_plan_t *plan)
-{
-    return plan->core->destroy(plan);
-}
-
+ucs_status_t ucg_plan_bcast_clone_params(ucg_plan_bcast_t *plan, 
+                                         ucg_plan_bcast_params_t *params);
 #endif

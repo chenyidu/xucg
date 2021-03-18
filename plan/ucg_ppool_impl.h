@@ -53,4 +53,10 @@ typedef struct ucg_ppool {
  */
 void ucg_ppool_register_plan(ucg_plan_t *plan);
 
+
+ucs_status_t ucg_plan_bcast_clone_params(ucg_plan_bcast_t *plan, 
+                                         ucg_plan_bcast_params_t *params);
+                                         
+
+
 #endif

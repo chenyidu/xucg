@@ -110,3 +110,19 @@ ucs_status_t ucg_plan_create_and_append_action(ucg_plan_t *plan,
     ucg_plan_append_action(plan, action);
     return;
 }
+
+ucs_status_t ucg_plan_bcast_clone_params(ucg_plan_bcast_t *plan, 
+                                         ucg_plan_bcast_params_t *params)
+{
+    ucs_status_t status = UCS_OK;
+    status = ucg_plan_clone_params(&plan->super, &plan->params.super, &params->super);
+    if (status != UCS_OK) {
+        return status;
+    }
+    
+    plan->params.buffer = params->buffer;
+    plan->params.count = params->count;
+    plan->params.dtype = params->dtype;
+    plan->params.root = params->root;
+    return UCS_OK;
+}

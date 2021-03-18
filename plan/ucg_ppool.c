@@ -9,6 +9,18 @@
 
 static ucg_ppool_t global_ppool;
 
+static inline ucg_plan_t* ucg_plan_clone(ucg_plan_t *plan, 
+                                         ucg_plan_params_t *params,
+                                         ucg_plan_clone_advice_t advice)
+{
+    return plan->core->clone(plan, params, advice);
+}
+
+static inline void ucg_plan_destroy(ucg_plan_t *plan)
+{
+    return plan->core->destroy(plan);
+}
+
 static void ucg_ppool_init(ucg_ppool_t *ppool)
 {
     kh_init(ucg_ppool);

@@ -44,7 +44,7 @@ typedef struct ucg_plan_bcast_params {
     void *buffer; 
     int count; 
     ucg_datatype_t *dtype;
-    int root;
+    ucg_rank_t root;
 } ucg_plan_bcast_params_t;
 
 /**
