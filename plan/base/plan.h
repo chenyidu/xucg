@@ -7,8 +7,24 @@
 #define UCG_BASE_PLAN_H_
 
 #include "action.h"
-#include <ucg/plan/ucg_ppool.h>
+#include <ucg/core/ucg_ppool.h>
 #include <ucs/sys/preprocessor.h>
+
+/* Derivation level */
+#define _UCG_DERIVED_LEVEL_1 super
+#define _UCG_DERIVED_LEVEL_2 _UCG_DERIVED_LEVEL_1.super
+#define _UCG_DERIVED_LEVEL_3 _UCG_DERIVED_LEVEL_2.super
+#define _UCG_DERIVED_LEVEL_4 _UCG_DERIVED_LEVEL_3.super
+#define _UCG_DERIVED_LEVEL(_n) _UCG_DERIVED_LEVEL_##_n
+#define UCG_DERIVED_LEVEL(_n) _UCG_DERIVED_LEVEL(_n)
+
+/**
+ * @param _ptr Derived class pointer
+ * @param _type Super class type
+ * @param _level Derived hierarchy
+ */
+#define ucg_super_of(_ptr, _level) \
+    (&((_ptr)->UCG_DERIVED_LEVEL(_level)))
 
 /* Replaced by incoming message. */
 #define UCG_BUFFER_MSG_HOLDER ((uint8_t*)1)
@@ -20,6 +36,35 @@
 
 /* The ID after 10000 is reserved for x plan. */
 #define UCG_PLAN_ID_MAX 10000
+
+/**
+ * @ingroup UCH_PLAN
+ * @brief Allocate a specific plan.
+ * 
+ * @param _type Plan type
+ */
+#define ucg_plan_allocate(_type) \
+    ucs_derived_of(ucg_plan_allocate_inner(sizeof(_type)), _type)
+
+/**
+ * @ingroup UCH_PLAN
+ * @brief Increase plan refcount and return it.
+ */
+#define ucg_plan_obtain(_plan) \
+    (typeof(_plan))ucg_plan_obtain_inner((ucg_plan_t*)_plan)
+
+/**
+ * @ingroup UCH_PLAN
+ * @brief Release plan.
+ * 
+ * Decrease the refcount of _plan. When the refcount reach 0, the _cleanup will 
+ * be performed.
+ */
+#define ucg_plan_release(_plan, _cleanup) \
+    ucg_plan_release_inner((ucg_plan_t*)_plan, _cleanup)
+
+#define ucg_plan_set_core(_plan, _ori_plan, _level) \
+    ucg_super_of(_plan, _level)->core = ucg_super_of(_ori_plan, _level)->core
 
 /**
  * @ingroup UCG_PLAN
@@ -149,24 +194,24 @@ typedef struct ucg_plan_allreduce {
  * @ingroup UCG_PLAN
  * @brief Allocate a plan.
  * 
+ * @note Should not be called directly, call MARCO ucg_plan_allocate() instead
  * @param [in] size Size of the plan space.
  */
-ucg_plan_t* ucg_plan_allocate(uint32_t size);
+ucg_plan_t* ucg_plan_allocate_inner(uint32_t size);
 
 /**
  * @ingroup UCG_PLAN
  * @brief Release a plan.
  * 
- * This routine decreases the refcount of plan, when the refcount becomes 0, 
- * the cleanup is performed.
+ * @note Should not be called directly, call MARCO ucg_plan_release() instead
  */
-void ucg_plan_release(ucg_plan_t *plan, ucg_plan_cleanup_cb_t cleanup);
+void ucg_plan_release_inner(ucg_plan_t *plan, ucg_plan_cleanup_cb_t cleanup);
 
 /**
  * @ingroup UCG_PLAN
  * @brief Obtain plan and increase refcount.
  */
-static inline ucg_plan_t* ucg_plan_obtain(ucg_plan_t *plan)
+static inline ucg_plan_t* ucg_plan_obtain_inner(ucg_plan_t *plan)
 {
     plan->refcount++;
     return plan;
@@ -205,6 +250,4 @@ static inline void ucg_plan_append_action(ucg_plan_t *plan,
     return;
 };
 
-ucs_status_t ucg_plan_bcast_clone_params(ucg_plan_bcast_t *plan, 
-                                         ucg_plan_bcast_params_t *params);
 #endif

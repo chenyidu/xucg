@@ -3,7 +3,7 @@
  * See file LICENSE for terms.
  */
 
-#ifndef UCG_CHANNEL_H_
-#define UCG_CHANNEL_H_
+#ifndef UCG_GROUP_H_
+#define UCG_GROUP_H_
 
 #endif

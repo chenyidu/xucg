@@ -95,6 +95,16 @@ typedef int (*ucg_mpi_addr_get_cb_t)(ucg_mh_t mh, ucp_address_t **addr, uint32_t
  */
 typedef void (*ucg_mpi_addr_put_cb_t)(ucp_address_t *addr);
 
+
+/**
+ * @ingroup UCG_RTE_MPI
+ * @brief Wether datatype is config.
+ *
+ * @param [in] dtype MPI datatype.
+ * @return 0 Non-contig, 1 contig
+ */
+typedef int (*ucg_mpi_dt_is_contig_cb_t)(void *dtype);
+
 /**
  * @ingroup UCG_RTE_MPI
  * @brief Compare datatype.
@@ -111,7 +121,7 @@ typedef int (*ucg_mpi_dt_is_same_cb_t)(void *ldtype, void *rdtype);
  *
  * @param [in] dtype Left-hand MPI datatype.
  * @param [out] size True size of the datatype.
- * @return 0 non-contig, 1 contig
+ * @return 0
  */
 typedef int (*ucg_mpi_dt_size_cb_t)(void *dtype, uint64_t *size);
 
@@ -205,6 +215,7 @@ typedef struct ucg_rte_mpi {
     } address;
  
     struct {
+        ucg_mpi_dt_is_contig_cb_t is_contig;
         ucg_mpi_dt_is_same_cb_t is_same;
         ucg_mpi_dt_size_cb_t size;
 

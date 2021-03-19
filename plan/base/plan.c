@@ -1,18 +1,20 @@
 
 #include "plan.h"
+#include <ucs/debug/log.h>
+#include <string.h>
 
-ucg_plan_t* ucg_plan_allocate(uint32_t size)
+ucg_plan_t* ucg_plan_allocate_inner(uint32_t size)
 {
     // TODO: use memory pool ?
-    ucg_plan_t *plan = ucs_calloc(size, "ucg_plan_t");
+    ucg_plan_t *plan = (ucg_plan_t*)ucs_calloc(1, size, "ucg_plan_t");
     if (plan == NULL) {
         return NULL;
     }
     plan->refcount = 1;
-    return;
+    return plan;
 }
 
-void ucg_plan_release(ucg_plan_t *plan, ucg_plan_cleanup_cb_t cleanup)
+void ucg_plan_release_inner(ucg_plan_t *plan, ucg_plan_cleanup_cb_t cleanup)
 {
     ucs_assert(plan != NULL && plan->refcount > 0);
     if (--plan->refcount == 0) {
@@ -32,7 +34,7 @@ void ucg_plan_release_actions(ucg_plan_t *plan)
         ucs_list_del(&action->list);
         ucg_plan_action_release(action);
     }
-    return UCS_OK;
+    return;
 }
 
 void ucg_plan_cleanup(ucg_plan_t *plan)
@@ -108,7 +110,7 @@ ucs_status_t ucg_plan_create_and_append_action(ucg_plan_t *plan,
     }
     ucg_plan_action_init_core(action, type, peers, count);
     ucg_plan_append_action(plan, action);
-    return;
+    return UCS_OK;
 }
 
 ucs_status_t ucg_plan_bcast_clone_params(ucg_plan_bcast_t *plan, 
@@ -119,7 +121,7 @@ ucs_status_t ucg_plan_bcast_clone_params(ucg_plan_bcast_t *plan,
     if (status != UCS_OK) {
         return status;
     }
-    
+
     plan->params.buffer = params->buffer;
     plan->params.count = params->count;
     plan->params.dtype = params->dtype;

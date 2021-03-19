@@ -31,6 +31,7 @@ typedef enum ucg_plan_type {
 typedef struct ucg_plan_params {
     ucg_plan_type_t type;
     void *config;
+    ucg_group_id_t id;
     ucg_group_members_t members;
 } ucg_plan_params_t;
 
@@ -69,6 +70,10 @@ typedef struct ucg_plan_allreduce_params {
  */
  ucg_plan_t *ucg_ppool_get_plan(ucg_plan_params_t *params);
 
- ucs_status_t ucg_ppool_put_plan(ucg_plan_t *plan);
+/**
+ * @ingroup UCG_PLAN
+ * @brief Put the plan.
+ */
+void ucg_ppool_put_plan(ucg_plan_t *plan);
 
 #endif

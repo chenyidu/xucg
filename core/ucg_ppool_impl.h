@@ -3,10 +3,10 @@
  * See file LICENSE for terms.
  */
 
-#ifndef UCG_PLAN_IMPL_H_
-#define UCG_PLAN_IMPL_H_
+#ifndef UCG_PPOOL_IMPL_H_
+#define UCG_PPOOL_IMPL_H_
 
-#include <ucg/plans/base/plan.h>
+#include <ucg/plan/base/plan.h>
 #include <ucs/type/status.h>
 #include <ucs/sys/preprocessor.h>
 #include <ucs/datastruct/khash.h>
@@ -19,9 +19,9 @@ typedef struct ucg_plan ucg_plan_t;
 /* Register a plan to plan pool. */
 #define UCG_PPOOL_REGISTER_PLAN(_plan)\
     UCS_STATIC_INIT { \
-        ucg_ppool_register_plan(&_plan); \
-    }
-    UCS_CONFIG_REGISTER_TABLE_ENTRY(&(_plan).core->config_entry)
+        ucg_ppool_register_plan(_plan); \
+    } \
+    UCS_CONFIG_REGISTER_TABLE_ENTRY(&((_plan)->core->config_entry))
 
 typedef struct ucg_plan_lru_node {
     ucg_plan_t *plan;

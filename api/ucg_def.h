@@ -5,6 +5,8 @@
 #ifndef UCG_DEF_H_
 #define UCG_DEF_H_
 
+#include <stdint.h>
+
 /**
  * @ingroup UCG_TOPOLOGY
  * @brief Define the distance between two processes.
@@ -58,7 +60,15 @@ typedef uint64_t ucg_mh_t;
  */
 typedef int ucg_rank_t;
 
- /**
+/**
+ * @ingroup UCG_GROUP
+ * @brief Group ID
+ * 
+ * Each group has its own unique ID.
+ */
+typedef uint32_t ucg_group_id_t;
+
+/**
   * @ingroup UCG_REQUEST
   * @brief UCG collective operation request
   *

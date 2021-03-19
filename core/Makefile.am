@@ -3,15 +3,25 @@
 # See file LICENSE for terms.
 #
 
-noinst_LTLIBRARIES      = libucg_base.la
-libucg_base_la_CFLAGS   = $(BASE_CFLAGS)
-libucg_base_la_CPPFLAGS = $(BASE_CPPFLAGS)
+sources = ucg_channel.h \
+          ucg_channel.c \
+          ucg_context.h \
+          ucg_context.c \
+          ucg_datatype.h \
+          ucg_datatype.c \
+          ucg_group.h \
+          ucg_group.c \
+          ucg_request.h \
+          ucg_request.c \
+          ucg_rte.h \
+          ucg_rte.c \
+          ucg_topology.h \
+          ucg_topology.c \
+          ucg_ppool.h \
+          ucg_ppool_impl.h \
+          ucg_ppool.c 
 
-noinst_HEADERS = \
-	ucg_plan.h \
-	ucg_group.h
-
-libucg_base_la_SOURCES = \
-	ucg_plan.c \
-	ucg_group.c \
-	ucg_version.c
+noinst_LTLIBRARIES      = libucg_core.la
+libucg_core_la_SOURCES  = $(sources)
+libucg_core_la_CFLAGS   = $(BASE_CFLAGS)
+libucg_core_la_CPPFLAGS = $(BASE_CPPFLAGS)

@@ -1,6 +1,10 @@
 #include "action.h"
 #include <ucs/datastruct/mpool.h>
 #include <ucs/arch/cpu.h>
+#include <ucs/debug/log.h>
+#include <ucs/debug/memtrack.h>
+
+#include <limits.h>
 
 typedef struct ucg_plan_action_mgr {
     int inited;

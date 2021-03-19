@@ -3,11 +3,10 @@
 # See file LICENSE for terms.
 #
 
+m4_include([src/ucg/core/configure.m4])
+m4_include([src/ucg/algo/configure.m4])
+m4_include([src/ucg/plan/configure.m4])
 
-ucg_modules=":builtin"
-m4_include([src/ucg/base/configure.m4])
-m4_include([src/ucg/builtin/configure.m4])
-m4_include([src/ucg/hicoll/configure.m4])
-AC_DEFINE_UNQUOTED([ucg_MODULES], ["${ucg_modules}"], [UCG loadable modules])
-
-AC_CONFIG_FILES([src/ucg/Makefile])
+AC_CONFIG_FILES([src/ucg/Makefile
+                 src/ucg/api/ucg_version.h
+                 src/ucg/core/ucg_version.c])

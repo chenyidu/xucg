@@ -1,7 +1,11 @@
+#include "ucg_rte.h"
+
 #include <ucg/api/ucg_dt.h>
 #include <ucg/api/ucg.h>
 #include <ucg/core/ucg_rte.h>
-#include <stdint.h>
+#include <ucs/debug/assert.h>
+
+#include <string.h>
 
 typedef struct ucg_rte {
     ucg_rte_type_t type;
@@ -28,26 +32,14 @@ ucs_status_t ucg_rte_init(ucg_rte_params_t *params)
     return UCS_OK;
 }
 
-uint32_t ucg_rte_dt_size(ucg_datatype_t *dt)
+uint64_t ucg_rte_dt_size(ucg_datatype_t *dt)
 {
     int id = dt->id;
-    uint32_t size = 0;
-    if (id == UCG_DT_TYPE_USER_DEFINED) {
-        switch (g_rte.type) {
-            case UCG_RTE_TYPE_MPI:
-                size = g_rte.mpi.dtype.size(dt->dt_ptr);
-                break;
-            default:
-                ucs_assert(0);
-                break;
-        }
-        return size;
-    }
-
-    ucs_assert(id < UCG_DT_TYPE_MAX_PREDEFINED);
-    switch (id) {
-        case UCG_DT_TYPE_UINT32:
-            size = sizeof(uint32_t);
+    uint64_t size = 0;
+    ucs_assert(id == UCG_DT_TYPE_USER_DEFINED);
+    switch (g_rte.type) {
+        case UCG_RTE_TYPE_MPI:
+            size = g_rte.mpi.dtype.size(dt->dt_ptr, &size);
             break;
         default:
             ucs_assert(0);
@@ -59,24 +51,35 @@ uint32_t ucg_rte_dt_size(ucg_datatype_t *dt)
 void* ucg_rte_dt_state(ucg_datatype_t *dt, void *buffer, uint32_t count, int is_pack)
 {
     void *dt_state = NULL;
-    int id = dt->id;
-    uint32_t size = 0;
-    if (id == UCG_DT_TYPE_USER_DEFINED) {
-        switch (g_rte.type) {
-            case UCG_RTE_TYPE_MPI:
-                if (!g_rte.mpi.dtype.is_contig(dt->dt_ptr)) {
-                    if (is_pack) {
-                        dt_state = g_rte.mpi.dtype.start_pack(dt->dt_ptr, buffer, count);
-                    } else {
-                        dt_state = g_rte.mpi.dtype.start_unpack(dt->dt_ptr, buffer, count);
-                    }
+    ucs_assert(dt->id == UCG_DT_TYPE_USER_DEFINED);
+    switch (g_rte.type) {
+        case UCG_RTE_TYPE_MPI:
+            if (!g_rte.mpi.dtype.is_contig(dt->dt_ptr)) {
+                if (is_pack) {
+                    dt_state = g_rte.mpi.dtype.start_pack(dt->dt_ptr, buffer, count);
+                } else {
+                    dt_state = g_rte.mpi.dtype.start_unpack(dt->dt_ptr, buffer, count);
                 }
-                break;
-            default:
-                ucs_assert(0);
-                break;
-        }
+            }
+            break;
+        default:
+            ucs_assert(0);
+            break;
     }
     
     return dt_state;
+}
+
+void ucg_rte_dt_state_finish(void *state)
+{
+    switch (g_rte.type) {
+        case UCG_RTE_TYPE_MPI:
+            g_rte.mpi.dtype.finish(state);
+            break;
+        default:
+            ucs_assert(0);
+            break;
+    }
+    
+    return;
 }

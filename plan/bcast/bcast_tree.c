@@ -1,10 +1,12 @@
 #include <ucg/algo/tree/tree.h>
 #include <ucg/plan/base/action.h>
 #include <ucg/plan/base/plan.h>
-#include <ucg/plan/ucg_ppool.h>
+#include <ucg/core/ucg_ppool_impl.h>
 #include <ucs/sys/compiler_def.h>
+#include <ucs/debug/log.h>
 
-typedef ucs_status_t (*ucg_calc_tree_node_cb_t)(ucg_plan_bcast_t *plan, 
+typedef struct ucg_plan_bcast_tree ucg_plan_bcast_tree_t;
+typedef ucs_status_t (*ucg_calc_tree_node_cb_t)(ucg_plan_bcast_tree_t *plan, 
                                                 ucg_plan_tree_node_t *node);
 
 typedef struct ucg_plan_bcast_ktree_config {
@@ -26,7 +28,7 @@ static ucs_status_t ucg_plan_bcast_btree_calc_node(ucg_plan_bcast_tree_t *plan,
         .size = members->count,
     };
     // For bcast, leftmost tree has better parallelism.
-    ucs_status_t status = ucg_plan_btree_left(&btree_params, &node);
+    ucs_status_t status = ucg_plan_btree_left(&btree_params, node);
     if (status != UCS_OK) {
         ucs_error("Fail to calculate binomial tree node, %s.", ucs_status_string(status));
         return status;
@@ -46,7 +48,7 @@ static ucs_status_t ucg_plan_bcast_ktree_calc_node(ucg_plan_bcast_tree_t* plan,
         .degree = config->degree,
     };
     // For bcast, leftmost tree has better parallelism.
-    ucs_status_t status = ucg_plan_ktree_left(&btree_params, &node);
+    ucs_status_t status = ucg_plan_ktree_left(&btree_params, node);
     if (status != UCS_OK) {
         ucs_error("Fail to calculate knomial tree node, %s.", ucs_status_string(status));
         return status;
@@ -91,7 +93,7 @@ static ucs_status_t ucg_plan_bcast_tree_build_actions(ucg_plan_bcast_tree_t *pla
 
     return UCS_OK;
 release_actions:
-    ucg_plan_release_actions(plan);
+    ucg_plan_release_actions(bplan);
     return status;
 }
 
@@ -109,7 +111,7 @@ static ucs_status_t ucg_plan_bcast_tree_create_actions(ucg_plan_bcast_tree_t *pl
         return status;
     }
 
-    return ucg_plan_bcast_build_actions(plan, &node);
+    return ucg_plan_bcast_tree_build_actions(plan, &node);
 }
 
 static ucs_status_t ucg_plan_bcast_tree_clone_params(ucg_plan_bcast_tree_t *plan, 
@@ -129,6 +131,7 @@ static void ucg_plan_bcast_tree_setup_actions_data(ucg_plan_bcast_tree_t *plan)
     ucg_plan_action_t *action = NULL;
     ucg_plan_action_datav_t *datav = NULL;
     uint8_t *tmp_buffer = NULL;
+    int child_cnt = 0;
     ucs_list_for_each(action, action_head, list) {
         action->mh = mh;
         datav = action->datav;
@@ -142,7 +145,7 @@ static void ucg_plan_bcast_tree_setup_actions_data(ucg_plan_bcast_tree_t *plan)
             case UCG_PLAN_ACTION_TYPE_FORWARD:
                 tmp_buffer = UCG_BUFFER_MSG_HOLDER; // fall through
             case UCG_PLAN_ACTION_TYPE_SEND:
-                int child_cnt = action->core->count;
+                child_cnt = action->core->count;
                 for (int i = 0; i < child_cnt; ++i) {
                     datav[i].count = 1;
                     datav[i].data[0].first = tmp_buffer;
@@ -175,13 +178,13 @@ static ucs_status_t ucg_plan_bcast_tree_init(ucg_plan_bcast_tree_t *plan,
     // Save parameters before creating actions.
     status = ucg_plan_bcast_tree_clone_params(plan, params);
     if (status != UCS_OK) {
-        ucs_error("Fail to save parameters.", ucs_status_string(status));
+        ucs_error("Fail to clone parameters, %s", ucs_status_string(status));
         return status;
     }
     // Create actions
     status = ucg_plan_bcast_tree_create_actions(plan);
     if (status != UCS_OK) {
-        ucs_error("Fail to craete actions.", ucs_status_string(status));
+        ucs_error("Fail to create actions, %s", ucs_status_string(status));
         return status;
     }
     // Setup actions data
@@ -206,37 +209,33 @@ static ucg_plan_t* ucg_plan_bcast_tree_new(ucg_plan_bcast_tree_t *plan,
 
     if (ucs_list_is_empty(&plan->super.super.action_list)) {
         // The plan is not initialized, use its space.
-        new_plan = ucg_plan_obtain(&plan->super.super);
+        new_plan = ucg_plan_obtain(plan);
     } else {
-        new_plan = ucg_plan_allocate(sizeof(ucg_plan_bcast_t));
+        new_plan = ucg_plan_allocate(ucg_plan_bcast_tree_t);
         if (new_plan == NULL) {
             ucs_error("Fail to allocate plan object.");
             return NULL;
         }
-        new_plan->super.super.core = plan->super.super.core;
+        ucg_plan_set_core(new_plan, plan, 2);
         new_plan->calc_tree_node = plan->calc_tree_node;
     }
 
     status = ucg_plan_bcast_tree_init(new_plan, params);
     if (status != UCS_OK) {
-        ucg_plan_release(new_plan, ucg_plan_bcast_tree_cleanup);
+        ucg_plan_release(&new_plan->super.super, ucg_plan_bcast_tree_cleanup);
         return NULL;
     }
-    return &new_plan->super;
+    return ucg_super_of(new_plan, 2);
 }
 
 static ucs_status_t ucg_plan_bcast_tree_clone_actions(ucg_plan_bcast_tree_t *plan, 
-                                                      ucg_plan_bcast_t *origin_plan)
+                                                      ucg_plan_bcast_tree_t *origin_plan)
 {
-    ucg_plan_bcast_params_t *old_params = &origin_plan->params;
-    ucg_plan_bcast_params_t *new_params = &plan->super.params;
-    ucg_group_members_t *old_members = &old_params->super.members;
-    ucg_group_members_t *new_members = &new_params->super.members;
-
+    ucs_list_link_t *action_head = &ucg_super_of(origin_plan, 2)->action_list;
     ucg_plan_action_t *origin_action = NULL;
     ucg_plan_action_t *action = NULL;
     const int with_core = 0;
-    ucs_list_for_each (origin_action, &origin_plan->super.action_list, list) {
+    ucs_list_for_each (origin_action, action_head, list) {
         ucg_plan_action_t *new_action = ucg_plan_action_allocate(with_core);
         if (new_action == NULL) {
             goto release_actions;
@@ -257,7 +256,7 @@ static ucg_plan_t* ucg_plan_bcast_tree_cow(ucg_plan_bcast_tree_t* plan,
 {
     ucs_status_t status = UCS_OK;
     
-    ucg_plan_bcast_tree_t *new_plan = ucg_plan_allocate(sizeof(ucg_plan_bcast_t));
+    ucg_plan_bcast_tree_t *new_plan = ucg_plan_allocate(ucg_plan_bcast_tree_t);
     if (new_plan == NULL) {
         ucs_error("Fail to allocate plan object.");
         return NULL;
@@ -266,17 +265,17 @@ static ucg_plan_t* ucg_plan_bcast_tree_cow(ucg_plan_bcast_tree_t* plan,
     status = ucg_plan_bcast_tree_clone_params(new_plan, params);
     if (status != UCS_OK) {
         ucg_plan_release(new_plan, ucg_plan_bcast_tree_cleanup);
-        ucs_error("Fail to clone parameters.", ucs_status_string(status));
+        ucs_error("Fail to clone parameters, %s", ucs_status_string(status));
         return NULL;
     }
 
-    ucs_status_t status = ucg_plan_bcast_tree_clone_actions(new_plan, plan);
+    status = ucg_plan_bcast_tree_clone_actions(new_plan, plan);
     if (status != UCS_OK) {
         ucg_plan_release(new_plan, ucg_plan_bcast_tree_cleanup);
         return NULL;
     }
 
-    return &new_plan->super.super;
+    return ucg_super_of(new_plan, 2);
 }
 
 static ucg_plan_t* ucg_plan_bcast_tree_clone(ucg_plan_t *bplan, 
@@ -287,14 +286,14 @@ static ucg_plan_t* ucg_plan_bcast_tree_clone(ucg_plan_t *bplan,
         return ucg_plan_obtain(bplan);
     }
     
-    ucg_plan_bcast_t *plan = ucs_container_of(bplan, ucg_plan_bcast_t, super);
-    ucg_plan_bcast_params_t *params = ucs_container_of(bparams, ucg_plan_bcast_params_t, super);
+    ucg_plan_bcast_tree_t *plan = ucs_derived_of(bplan, ucg_plan_bcast_tree_t);
+    ucg_plan_bcast_params_t *params = ucs_derived_of(bparams, ucg_plan_bcast_params_t);
     if (advice ==  UCG_PLAN_CLONE_ADVICE_UNEQUAL) {
-        return ucg_plan_btree_bcast_new(plan, params);
+        return ucg_plan_bcast_tree_new(plan, params);
     }
 
     if (advice == UCG_PLAN_CLONE_ADVICE_SIMILAR) {
-        return ucg_plan_btree_bcast_cow(plan, params);
+        return ucg_plan_bcast_tree_cow(plan, params);
     }
     // Should never be here.
     ucs_assert(0);
@@ -326,10 +325,10 @@ static ucg_plan_bcast_tree_t g_bcast_tree = {
     },
     .calc_tree_node = ucg_plan_bcast_btree_calc_node,
 };
-UCG_PPOOL_REGISTER_PLAN(g_bcast_tree);
+UCG_PPOOL_REGISTER_PLAN(ucg_super_of(&g_bcast_tree, 2));
 
 static ucs_config_field_t g_bcast_ktree_config_table[] = {
-    {"DEGREE", "knomial tree degree.", 
+    {"DEGREE", "8", "knomial tree degree.", 
      ucs_offsetof(ucg_plan_bcast_ktree_config_t, degree), UCS_CONFIG_TYPE_UINT},
     {NULL},
 };
@@ -358,4 +357,4 @@ static ucg_plan_bcast_tree_t g_bcast_ktree = {
     },
     .calc_tree_node = ucg_plan_bcast_ktree_calc_node,
 };
-UCG_PPOOL_REGISTER_PLAN(g_bcast_ktree);
+UCG_PPOOL_REGISTER_PLAN(ucg_super_of(&g_bcast_ktree, 2));

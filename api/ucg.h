@@ -6,6 +6,8 @@
 #define UCG_H_
 
 #include <ucg/api/ucg_rte_mpi.h>
+#include <ucg/api/ucg_dt.h>
+#include <stdio.h>
 
 /**
  * @ingroup UCG_RTE
@@ -18,6 +20,7 @@ typedef enum ucg_rte_type {
 
 typedef enum ucg_group_params_field {
     UCG_GROUP_PARAMS_UCP_WORKER = UCS_BIT(0),
+    UCG_GROUP_PARAMS_ID = UCS_BIT(1),
     UCG_GROUP_PARAMS_MEMBERS = UCS_BIT(1),
 } ucg_group_params_field_t;
 
@@ -60,6 +63,9 @@ typedef struct ucg_group_params {
     
     /* Specified worker, cannot release until the group is destroyed */
     ucp_worker_h ucp_worker;
+
+    /* Unique group id. */
+    ucg_group_id_t id;
     ucg_group_members_t members;
 } ucg_group_params_t;
 
