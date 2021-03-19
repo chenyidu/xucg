@@ -20,24 +20,12 @@
 |   └── ...
 ├── core                              # 核心功能实现目录
 │   ├── ucg_context.c                     
-│   └── ...                     
-└── plans                             # 集合操作算法实现目录
-    ├── ucg_plan.c                        # plan对外接口实现
-    ├── ucg_plan.h                        # plan对外头文件
-    ├── base                              # plan基础实现
-    |   ├── ucg_plan_base.h                  # plan内部基类头文件
-    |   └── ...
-    ├── recursive_doubling                # 以算法类型命名的目录
-    |   ├── rd_allreduce.c              # 基于该类算法实现的Allreduce plan
-    |   ├── rd_barrier.c                # 基于该类算法实现的Barrier plan  
-    |   ├── rd.c                             # 算法实现
-    |   └── rd.h
-    └── ...                           
+│   └── ...     
+├── algo                             # 基础算法目录 
+└── plan                             # 集合操作实现目录  
+
 ```
 目录结构与UCX其他组件的风格保持一致，如api、core。
-- plans目录为UCG特有的目录，用于保存集合操作算法和其生成的plan。
-- - 子目录以算法名命名，同类的变种算法可放在同一目录下，比如recursive_doubling下可以有RD、Topo-Aware RD等。以该类算法实现的集合操作，以算法名缩写开头，后接集合操作名。
-> 考虑过以集合操作命名子目录，但多种集合操作可能使用同一种算法，存在跨集合操作目录调用算法的问题。
 
 # 编码风格
 使用UCX编码风格，除了对齐等号、变量，因为这样的做法由一个弊端是会在修改中增加一些无效操作，增加review成本，比如
@@ -65,7 +53,7 @@ aaaaaa = 0;
 
 | 名字 | 描述 | 备注 |
 | --- | --- | --- |
-| phase | 执行计划中的一个阶段 | 一个plan由多个phase组成 |
+| action | 执行计划中的一个动作 | 一个plan由多个action组成 |
 | ppool | plan pool，plan的管理者，可从中获取plan | 需要实现选择plan功能即最佳算法选择 |
 | channel | 通讯管道 | 创建ucp ep、收发数据方式（short、bcopy、zcopy）、链路复用、am handler等等。 | 
 | topology | 运行环境中所有进程的拓扑信息，主要是距离等信息。| 以MPI为例，保存MPI_COMM_WORLD内所有进程的拓扑信息 |
