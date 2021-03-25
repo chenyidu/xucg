@@ -3,158 +3,72 @@
  * See file LICENSE for terms.
  */
  
-#ifndef UCG_BASE_PLAN_H_
-#define UCG_BASE_PLAN_H_
+#ifndef UCG_PLAN_BASE_H_
+#define UCG_PLAN_BASE_H_
 
 #include "action.h"
-#include <ucg/core/ucg_ppool.h>
+#include <ucg/plan/api.h>
+#include <ucg/api/ucg.h>
+#include <ucg/core/ucg_datatype.h>
 #include <ucs/sys/preprocessor.h>
 
-/* Derivation level */
-#define _UCG_DERIVED_LEVEL_1 super
-#define _UCG_DERIVED_LEVEL_2 _UCG_DERIVED_LEVEL_1.super
-#define _UCG_DERIVED_LEVEL_3 _UCG_DERIVED_LEVEL_2.super
-#define _UCG_DERIVED_LEVEL_4 _UCG_DERIVED_LEVEL_3.super
-#define _UCG_DERIVED_LEVEL(_n) _UCG_DERIVED_LEVEL_##_n
-#define UCG_DERIVED_LEVEL(_n) _UCG_DERIVED_LEVEL(_n)
-
-/**
- * @param _ptr Derived class pointer
- * @param _type Super class type
- * @param _level Derived hierarchy
- */
-#define ucg_super_of(_ptr, _level) \
-    (&((_ptr)->UCG_DERIVED_LEVEL(_level)))
-
-/* Replaced by incoming message. */
+/* Will be replaced by incoming message. */
 #define UCG_BUFFER_MSG_HOLDER ((uint8_t*)1)
 
-/* Assertions which are checked in compile-time. 
- * TODO: move to appropriate file. 
- */
-#define UCG_STATIC_ASSERT(_cond) typedef int UCS_PP_APPEND_UNIQUE_ID(assert)[(_cond)?1:-1]
-
-/* The ID after 10000 is reserved for x plan. */
-#define UCG_PLAN_ID_MAX 10000
-
 /**
- * @ingroup UCH_PLAN
- * @brief Allocate a specific plan.
- * 
- * @param _type Plan type
- */
-#define ucg_plan_allocate(_type) \
-    ucs_derived_of(ucg_plan_allocate_inner(sizeof(_type)), _type)
-
-/**
- * @ingroup UCH_PLAN
- * @brief Increase plan refcount and return it.
- */
-#define ucg_plan_obtain(_plan) \
-    (typeof(_plan))ucg_plan_obtain_inner((ucg_plan_t*)_plan)
-
-/**
- * @ingroup UCH_PLAN
- * @brief Release plan.
- * 
- * Decrease the refcount of _plan. When the refcount reach 0, the _cleanup will 
- * be performed.
- */
-#define ucg_plan_release(_plan, _cleanup) \
-    ucg_plan_release_inner((ucg_plan_t*)_plan, _cleanup)
-
-#define ucg_plan_set_core(_plan, _ori_plan, _level) \
-    ucg_super_of(_plan, _level)->core = ucg_super_of(_ori_plan, _level)->core
-
-/**
- * @ingroup UCG_PLAN
- * @brief Flags of plan's capabilities.
- */
-typedef enum ucg_plan_cap_flag {
-    UCG_PLAN_CAP_FLAG_TOPO_AWARE = UCS_BIT(0), /* Topo-aware plan. */
-    UCG_PLAN_CAP_FLAG_SWITCH_ROOT = UCS_BIT(1), /* Support swicthing root. */
-} ucg_plan_cap_flag_t;
-
-/**
- * @ingroup UCG_PLAN
- * @brief The result of the comparison between the two plan parameters. 
- * 
- * Advice comes from 
- * 1. User parameter comparison,
- * 2. Configuration comparison,
- * 3. Agreed rules
- */
-typedef enum ucg_plan_clone_advice {
-    UCG_PLAN_CLONE_ADVICE_SAME, /* Everything is same, may reuse the origin plan directly. */
-    UCG_PLAN_CLONE_ADVICE_SIMILAR, /* Non-critical parts are different. */
-    UCG_PLAN_CLONE_ADVICE_UNEQUAL, /* Critical parts are different, not clone but creating a new one. */
-} ucg_plan_clone_advice_t;
+ * @brief Register a plan
+ * @param _name Plan name.
+ * @param _plan_core_ptr Pointer to plan core.
+*/
+#define UCG_PLAN_REGISTER(_name, _plan_core_ptr)\
+    static ucg_plan_t _name##_plan = { \
+        .core = _plan_core_ptr, \
+        .refcount = 1, /* Never release. */ \
+    }; \
+    UCS_STATIC_INIT { \
+        ucg_plan_register(&_name##_plan); \
+    }
 
 typedef struct ucg_plan ucg_plan_t;
-
+typedef struct ucg_plan_params ucg_plan_params_t;
 /**
  * @ingroup UCG_PLAN
- * @brief Clone a plan object.
+ * @brief Plan's constructor.
  *
- * Follow the COW(Copy On Write) principle, reuse the original plan for the
- * part not affected by parameter changes.
+ * If @b other is NULL, it's a normal constrcutor. Otherwise, it's a copy constrcutor. 
+ * Constructor only needs to care about creating actions, and the rest have been 
+ * set during super class initialization, such as parameters.
  * 
- * @param [in] plan The original plan used for cloning.
- * @param [in] params Parameters for creating a plan.
- * @param [in] advise Advice on how to clone.
+ * @param [in] self Plan object waiting to be constructed.
+ * @param [in] other For copy constructor. 
+ * @param [in] config Configuration for constructing the plan.
+ * @param [in] params Parameters for constructing the plan.
  */
-typedef ucg_plan_t* (*ucg_plan_clone_cb_t)(ucg_plan_t *plan,
-                                           ucg_plan_params_t *params,
-                                           ucg_plan_clone_advice_t advice);
+typedef ucs_status_t (*ucg_plan_constructor_func_t)(ucg_plan_t *self,
+                                                    const ucg_plan_t *other,
+                                                    const ucg_config_t *config);
 
 /**
  * @ingroup UCG_PLAN
- * @brief Destroy a plan returned by clone()
+ * @brief Plan's destructor.
  * 
- * @note clone() and destroy() need to be used in pairs.
+ * Destructor only needs to care about destroying actions created in constructor, 
+ * and other resources allocated in constructor.
  */
-typedef void (*ucg_plan_destroy_cb_t)(ucg_plan_t *plan);
-
-/**
- * @ingroup UCG_PLAN
- * @brief Cleanup a plan.
- */
-typedef void (*ucg_plan_cleanup_cb_t)(ucg_plan_t *plan);
-
-/**
- * @ingroup UCG_PLAN
- * @brief IDs of broadcast plans.
- */
-typedef enum ucg_plan_bcast_id {
-    UCG_PLAN_BCAST_ID_BTREE, /* binomial tree */
-    UCG_PLAN_BCAST_ID_KTREE, /* knomial tree */
-    UCG_PLAN_BCAST_ID_MAX,
-} ucg_plan_bcast_id_t;
-UCG_STATIC_ASSERT(UCG_PLAN_BCAST_ID_MAX <= UCG_PLAN_ID_MAX);
-
-/**
- * @ingroup UCG_PLAN
- * @brief IDs of allredece plans.
- */
-typedef enum ucg_plan_allreduce_id {
-    UCG_PLAN_ALLREDUCE_ID_RD,  /* recursive doubling */
-    UCG_PLAN_ALLREDUCE_ID_MAX,
-} ucg_plan_allreduce_id_t;
-UCG_STATIC_ASSERT(UCG_PLAN_ALLREDUCE_ID_MAX <= UCG_PLAN_ID_MAX);
+typedef void (*ucg_plan_destructor_func_t)(ucg_plan_t *self);
 
 /**
  * @ingroup UCG_PLAN
  * @brief The unchangeable part of a plan.
  */
 typedef struct ucg_plan_core {
-    ucg_plan_type_t type;
-    int id;
+    ucg_plan_id_t id;
     const char *desc;
-    uint64_t cap_flags; /**< see ucg_plan_cap_flag_t. */
-    ucs_config_global_list_entry_t config_entry;
+    uint64_t cap_flags; /**< see @ref ucg_plan_cap_flag_t. */
 
-    ucg_plan_clone_cb_t clone;
-    ucg_plan_destroy_cb_t destroy;
+    uint32_t plan_size;
+    ucg_plan_constructor_func_t constructor;
+    ucg_plan_destructor_func_t destructor;
 } ucg_plan_core_t;
 
 /**
@@ -192,62 +106,38 @@ typedef struct ucg_plan_allreduce {
 
 /**
  * @ingroup UCG_PLAN
- * @brief Allocate a plan.
- * 
- * @note Should not be called directly, call MARCO ucg_plan_allocate() instead
- * @param [in] size Size of the plan space.
+ * @brief Base structure of barrier plan.
  */
-ucg_plan_t* ucg_plan_allocate_inner(uint32_t size);
+typedef struct ucg_plan_barrier {
+    ucg_plan_t super;
+    ucg_plan_barrier_params_t params;
+} ucg_plan_barrier_t;
 
 /**
  * @ingroup UCG_PLAN
- * @brief Release a plan.
- * 
- * @note Should not be called directly, call MARCO ucg_plan_release() instead
+ * @brief Append an action to the plan.
  */
-void ucg_plan_release_inner(ucg_plan_t *plan, ucg_plan_cleanup_cb_t cleanup);
-
-/**
- * @ingroup UCG_PLAN
- * @brief Obtain plan and increase refcount.
- */
-static inline ucg_plan_t* ucg_plan_obtain_inner(ucg_plan_t *plan)
-{
-    plan->refcount++;
-    return plan;
-}
-
-/**
- * @ingroup UCG_PLAN
- * @brief Release actions in the plan.
- */
-void ucg_plan_release_actions(ucg_plan_t *plan);
-
-/**
- * @ingroup UCG_PLAN
- * @brief Cleanup all resource of the plan.
- */
-void ucg_plan_cleanup(ucg_plan_t *plan);
-
-/**
- * @ingroup UCG_PLAN
- * @brief Clone parameters (deep copy).
- */
-ucs_status_t ucg_plan_clone_params(ucg_plan_t *plan, 
-                                   ucg_plan_params_t *src, 
-                                   ucg_plan_params_t *dst);
-
-void ucg_plan_destroy_params(ucg_plan_params_t *params);
-
-ucs_status_t ucg_plan_create_and_append_action(ucg_plan_t *plan, 
-                                               ucg_plan_action_type_t type, 
-                                               ucg_rank_t *peers, int count);
-
 static inline void ucg_plan_append_action(ucg_plan_t *plan, 
                                           ucg_plan_action_t *action)
 {
     ucs_list_add_tail(&plan->action_list, &action->list);
     return;
 };
+
+/**
+ * @ingroup UCG_PLAN
+ * @brief Create an action then append to the plan.
+ */
+ucs_status_t ucg_plan_create_and_append_action(ucg_plan_t *plan, 
+                                               ucg_plan_action_type_t type, 
+                                               ucg_rank_t *peers, int count);
+
+void ucg_plan_release_actions(ucg_plan_t *plan);
+
+/**
+ * @ingroup UCG_PLAN
+ * @brief Register a plan object.
+ */
+void ucg_plan_register(ucg_plan_t *plan);
 
 #endif

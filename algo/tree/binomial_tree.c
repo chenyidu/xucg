@@ -1,7 +1,10 @@
-#include "binomial_tree.h"
+#include "tree.h"
+
 #include <ucs/debug/assert.h>
 
-ucs_status_t ucg_plan_btree_left(const ucg_plan_btree_params_t *params, 
+#include <stddef.h>
+
+ucs_status_t ucg_algo_btree_left(const ucg_plan_btree_params_t *params, 
                                  ucg_plan_tree_node_t *node)
 {
     ucs_assert(params != NULL && node->child != NULL);
@@ -24,7 +27,7 @@ ucs_status_t ucg_plan_btree_left(const ucg_plan_btree_params_t *params,
     if (root == self) {
         node->father_cnt = 0;
     } else {
-        node->father = (vself ^ (mask >> 1) + root) % size;
+        node->father = ((vself ^ (mask >> 1)) + root) % size;
         node->father_cnt = 1;
     }
 
@@ -48,7 +51,7 @@ ucs_status_t ucg_plan_btree_left(const ucg_plan_btree_params_t *params,
 }
 
 
-ucs_status_t ucg_plan_btree_right(const ucg_plan_btree_params_t *params, 
+ucs_status_t ucg_algo_btree_right(const ucg_plan_btree_params_t *params, 
                                   ucg_plan_tree_node_t *node)
 {
     ucs_assert(params != NULL &&  node->child != NULL);

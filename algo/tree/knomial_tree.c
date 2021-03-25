@@ -1,7 +1,10 @@
-#include "knomial_tree.h"
+#include "tree.h"
+
 #include <ucs/debug/assert.h>
 
-ucs_status_t ucg_plan_ktree_left(const ucg_plan_ktree_params_t *params, 
+#include <stddef.h>
+
+ucs_status_t ucg_algo_ktree_left(const ucg_plan_ktree_params_t *params, 
                                  ucg_plan_tree_node_t *node)
 {
     ucs_assert(params != NULL && node->child != NULL);
@@ -49,7 +52,7 @@ ucs_status_t ucg_plan_ktree_left(const ucg_plan_ktree_params_t *params,
     return UCS_OK;
 }
 
-ucs_status_t ucg_plan_ktree_right(const ucg_plan_ktree_params_t *params, 
+ucs_status_t ucg_algo_ktree_right(const ucg_plan_ktree_params_t *params, 
                                   ucg_plan_tree_node_t *node)
 {
 ucs_assert(params != NULL && node->child != NULL);

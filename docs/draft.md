@@ -166,6 +166,8 @@ type为集合操作类型，id为该集合操作下分配的plan序号（每种t
 
 常见的决策点：group成员个数是否大于或小于某个值、成员个数是否为2次幂、op是否满足交换律、消息大小是否大于或小于某个值等。
 
+允许用户通过环境变量指定某个算法的适用范围，如`UCG_BCAST_ALGO=algo[@comm_size_range][#msg_size_range],...`。`[]`为可选，`comm_size_range`和`msg_size_range`的格式是`low-high`，取值范围为`[low, high)`，默认为`[0,∞)`。按指定顺序，进行匹配，即排在前面的优先级高。若无法匹配到，则进入决策树流程。
+
 ### 复用plan
 真正的写时复制实现起来比较麻烦，因此提前将plan分为constant部分和mutable部分。对于constant部分通过指针引用，对于mutable部分通过constant部分里的指定函数初始化。phase同理。
 
@@ -174,18 +176,19 @@ type为集合操作类型，id为该集合操作下分配的plan序号（每种t
 1. 指定集合操作算法的配置，该config table定义在ucg_context.c中。
 2. 指定plan算法细节的配置，该config table定义在plan的源文件中。
 
-为了支持User能在ucg_context_init()时指定特定的配置项，需要提供
-1. ucg_config_read()获取配置项指针`ucg_config_t*`
-2. ucg_config_modify()修改特定的配置项
+plan的config table注册到ppool中。context根据需求从ppool中获取plan的config table，
+1. 指定了算法，则只获取该算法的config table.
+2. 未指定算法，则ppool返回决策树中使用到的算法config table。
 
-因为两类配置是隔离的（ucg context层不能感知plan的具体配置项），所以无法将配置项字段定义在一个结构体中，只能分开获取，然后放在一个指针数组中。
 
-因为不同plan的配置项也是隔离的，相互并不感知，所以可能出现相同table name和table prefix，甚至一样的配置项名，需要**增加检测机制**。
-
-在ucg_config_modify()时，只有配置项名，但并不知道该配置项名属于哪个table，因此只能一个个尝试，直到设置成功。为了便利，可以约定每个table的prefix必须不一样，这样可以通过比较配置项名是否有该prefix，从而找到对应的table。
-
-保证config_bundles中plan config的顺序与plan template数组的顺序一样，保证可以快速找到对应的plan template，并以该config实例化一个plan。
-
+ppool提供接口`ucg_ppool_get_plan_cfg_table(include[MAX_TYPE], plan_config_entry& entry)`
+```
+struct plan_config_entry{
+    plan type;
+    id;
+    ucs_config_global_list_entry_t entry;
+};
+``
 
 # 附录
 ## planner是否有存在的必要？—— 否
@@ -245,5 +248,6 @@ request 3: root = 1, mh3 = {A,B,C,D} --switch root--> mh3 = {B,A,C,D}，A和B的
      |             |
      3             D
 ```
+
 
 

@@ -9,6 +9,8 @@
 #include <ucg/api/ucg_dt.h>
 #include <stdint.h>
 
+uint32_t ucg_rte_dt_is_contig(ucg_datatype_t *dt);
+
 uint64_t ucg_rte_dt_size(ucg_datatype_t *dt);
 
 void* ucg_rte_dt_state(ucg_datatype_t *dt, void *buffer, uint32_t count, int is_pack);

@@ -80,7 +80,7 @@ typedef struct ucg_plan_action_core {
 typedef struct ucg_plan_action {
     ucg_plan_action_core_t *core;
 
-    uint64_t *mh; /* This member handle of this action, mh[peers[i]]. */
+    ucg_mh_t *mh; /* This member handle of this action, mh[peers[i]]. */
     ucg_plan_action_datav_t datav[UCG_PLAN_PHASE_PEERS_MAX_NUM]; /* peers[i] associated with datav[i]. */
     ucs_list_link_t list;
 } ucg_plan_action_t;
@@ -90,6 +90,12 @@ typedef struct ucg_plan_action {
  * @brief Initialize the resource on which the action depends.
  */
 ucs_status_t ucg_plan_action_global_init();
+
+/**
+ * @ingroup UCG_PLAN_ACTION
+ * @brief Release the resource on which the action depends.
+ */
+void ucg_plan_action_global_cleanup();
 
 /**
  * @ingroup UCG_PLAN_ACTION
@@ -119,7 +125,7 @@ static inline void ucg_plan_action_init_core(ucg_plan_action_t *action,
 
 /**
  * @ingroup UCG_PLAN_ACTION
- * @brief Increase action core refcount.
+ * @brief Increase refcount of action core and return it.
  */
 static inline ucg_plan_action_core_t* ucg_plan_action_obtain_core(ucg_plan_action_t* phase)
 {

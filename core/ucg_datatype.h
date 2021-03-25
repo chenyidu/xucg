@@ -8,6 +8,13 @@ typedef void ucg_dt_state_t;
 
 /**
  * @ingroup UCG_DT
+ * @brief Check wether datatype is contig.
+ * @return 1 contig, 0 non-contig
+ */
+uint32_t ucg_dt_is_contig(ucg_datatype_t *dt);
+
+/**
+ * @ingroup UCG_DT
  * @brief Get the real size of the datatype.
  */
 uint64_t ucg_dt_size(ucg_datatype_t *dt);

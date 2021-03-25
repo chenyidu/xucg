@@ -1,9 +1,12 @@
 #include "ucg_rte.h"
+#include "ucg_config.h"
 
+#include <config.h>
 #include <ucg/api/ucg_dt.h>
 #include <ucg/api/ucg.h>
-#include <ucg/core/ucg_rte.h>
+#include <ucg/plan/api.h>
 #include <ucs/debug/assert.h>
+#include <ucs/sys/module.h>
 
 #include <string.h>
 
@@ -12,29 +15,64 @@ typedef struct ucg_rte {
     union {
         ucg_rte_mpi_t mpi;
     };
-
 } ucg_rte_t;
-
 static ucg_rte_t g_rte;
+
 
 ucs_status_t ucg_rte_init(ucg_rte_params_t *params)
 {
-    g_rte.type = params->type;
-    switch (g_rte.type) {
-        case UCG_RTE_TYPE_MPI:
-            memcpy(&g_rte.mpi, &params->mpi, sizeof(ucg_rte_mpi_t));
-            break;
-        default:
-            return UCS_ERR_UNSUPPORTED;
+    if (params == NULL || params->type >= UCG_RTE_TYPE_LAST) {
+        return UCS_ERR_INVALID_PARAM;
     }
 
+    if (params->type == UCG_RTE_TYPE_MPI) {
+        // TODO: Check the validity of all fields
+        memcpy(&g_rte.mpi, &params->mpi, sizeof(ucg_rte_mpi_t));
+    } 
+
+    UCS_MODULE_FRAMEWORK_DECLARE(ucg);
+    UCS_MODULE_FRAMEWORK_LOAD(ucg, 0);
+    ucs_status_t status;
+    status = ucg_plan_global_init();
+    if (status != UCS_OK) {
+        return status;
+    }
+
+    /* Execute last to ensure that all module configurations are loaded. */
+    status = ucg_config_global_init();
+    if (status != UCS_OK) {
+        return status;
+    }
 
     return UCS_OK;
 }
 
+void ucg_rte_cleanup()
+{
+    ucg_config_global_cleanup();
+    ucg_plan_global_cleanup();
+    return;
+}
+
+uint32_t ucg_rte_dt_is_contig(ucg_datatype_t *dt)
+{
+     ucg_dt_type_id_t id = dt->id;
+     ucs_assert(id == UCG_DT_TYPE_USER_DEFINED);
+     uint32_t ret = 0;
+     switch (g_rte.type) {
+        case UCG_RTE_TYPE_MPI:
+            ret = g_rte.mpi.dtype.is_contig(dt->dt_ptr);
+            break;
+        default:
+            ucs_assert(0);
+            break;
+    }
+    return ret;
+}
+
 uint64_t ucg_rte_dt_size(ucg_datatype_t *dt)
 {
-    int id = dt->id;
+    ucg_dt_type_id_t id = dt->id;
     uint64_t size = 0;
     ucs_assert(id == UCG_DT_TYPE_USER_DEFINED);
     switch (g_rte.type) {

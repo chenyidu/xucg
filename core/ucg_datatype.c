@@ -16,6 +16,16 @@ uint64_t g_dt_size[] = {
     sizeof(uint32_t), // UCG_DT_TYPE_UINT32
 };
 
+uint32_t ucg_dt_is_contig(ucg_datatype_t *dt)
+{
+    int id = dt->id;
+    if (id == UCG_DT_TYPE_USER_DEFINED) { 
+        return ucg_rte_dt_is_contig(dt);
+    }
+    // All builtin datatype is contig.
+    return 1;
+}
+
 uint64_t ucg_dt_size(ucg_datatype_t *dt)
 {
     int id = dt->id;

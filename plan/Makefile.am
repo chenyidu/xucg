@@ -9,7 +9,8 @@ base = base/action.h \
 
 bcast = bcast/bcast_tree.c 
 
-sources = $(base) \
+sources = api.h \
+          $(base) \
           $(bcast) 
 
 noinst_LTLIBRARIES      = libucg_plan.la

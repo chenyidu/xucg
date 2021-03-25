@@ -41,7 +41,7 @@ typedef struct ucg_rte_params {
  */
 typedef struct ucg_context_params {
     uint64_t field_mask;
-} ucg_context_params_t;
+} ucg_params_t;
 
 typedef struct ucg_group_members {
     ucg_rank_t self; /* My position in the handles array */
@@ -177,6 +177,12 @@ const char* ucg_get_version_string(void);
 ucs_status_t ucg_rte_init(ucg_rte_params_t *params);
 
 /**
+ * @ingroup UCG_RTE
+ * @brief Release UCG runtime enviroment.
+ */
+void ucg_rte_cleanup();
+
+/**
  * @ingroup UCG_CONTEXT
  * @brief UCG context initialization.
  *
@@ -185,16 +191,14 @@ ucs_status_t ucg_rte_init(ucg_rte_params_t *params);
  * @param [out] context Initialized UCG context.
  * @return Error code as defined by @ref ucs_status_t
  */
-ucs_status_t ucg_context_init(const ucg_context_params_t *params, 
-                              const ucg_config_t *config,
-                              ucg_context_h *context);
+ucs_status_t ucg_init(const ucg_params_t *params, const ucg_config_t *config, ucg_context_h *context);
 /**
  * @ingroup UCG_CONTEXT
  * @brief Release UCG application context.
  *
  * @param [in] context Initialized UCG context.
  */
-void ucg_context_cleanup(ucg_context_h context);
+void ucg_cleanup(ucg_context_h context);
 
 /**
  * @ingroup UCG_GROUP

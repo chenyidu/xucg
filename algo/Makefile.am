@@ -10,6 +10,6 @@ tree = tree/tree.h \
 sources = $(tree) 
 
 noinst_LTLIBRARIES      = libucg_algo.la
-libucg_algo_la_SOURCES  = $(source)
+libucg_algo_la_SOURCES  = $(sources)
 libucg_algo_la_CFLAGS   = $(BASE_CFLAGS)
 libucg_algo_la_CPPFLAGS = $(BASE_CPPFLAGS)

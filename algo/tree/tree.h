@@ -45,7 +45,7 @@ typedef struct ucg_plan_btree_params {
  * @param [in] params 
  * @param [inout] node
  */
-ucs_status_t ucg_plan_btree_left(const ucg_plan_btree_params_t *params, 
+ucs_status_t ucg_algo_btree_left(const ucg_plan_btree_params_t *params, 
                                  ucg_plan_tree_node_t *node);
 
 /**
@@ -63,7 +63,7 @@ ucs_status_t ucg_plan_btree_left(const ucg_plan_btree_params_t *params,
  * @param [in] params 
  * @param [inout] node
  */
-ucs_status_t ucg_plan_btree_right(const ucg_plan_btree_params_t *params, 
+ucs_status_t ucg_algo_btree_right(const ucg_plan_btree_params_t *params, 
                                   ucg_plan_tree_node_t *node);
 
 /**
@@ -81,7 +81,7 @@ ucs_status_t ucg_plan_btree_right(const ucg_plan_btree_params_t *params,
  * @param [in] params 
  * @param [inout] node
  */
-ucs_status_t ucg_plan_ktree_left(const ucg_plan_ktree_params_t *params, 
+ucs_status_t ucg_algo_ktree_left(const ucg_plan_ktree_params_t *params, 
                                  ucg_plan_tree_node_t *node);
 
 /**
@@ -99,7 +99,7 @@ ucs_status_t ucg_plan_ktree_left(const ucg_plan_ktree_params_t *params,
  * @param [in] params 
  * @param [inout] node
  */
-ucs_status_t ucg_plan_ktree_right(const ucg_plan_ktree_params_t *params, 
+ucs_status_t ucg_algo_ktree_right(const ucg_plan_ktree_params_t *params, 
                                   ucg_plan_tree_node_t *node);
 
 #endif

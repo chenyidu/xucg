@@ -3,7 +3,8 @@
 # See file LICENSE for terms.
 #
 
-sources = ucg_channel.h \
+sources = ucg_version.c \
+          ucg_channel.h \
           ucg_channel.c \
           ucg_context.h \
           ucg_context.c \
@@ -18,8 +19,9 @@ sources = ucg_channel.h \
           ucg_topology.h \
           ucg_topology.c \
           ucg_ppool.h \
-          ucg_ppool_impl.h \
-          ucg_ppool.c 
+          ucg_ppool.c \
+          ucg_config.h \
+          ucg_config.c
 
 noinst_LTLIBRARIES      = libucg_core.la
 libucg_core_la_SOURCES  = $(sources)
