@@ -12,7 +12,7 @@
 /**
  * @brief Register config table.
  */
-#define UCG_CONFIG_REGISTER_TABLER(_table, _name, _prefix, _type) \
+#define UCG_CONFIG_REGISTER_TABLE(_table, _name, _prefix, _type) \
     static uint32_t _type##_num_fields = sizeof(_table) / sizeof(ucs_config_field_t) - 1; \
     static ucs_config_global_list_entry_t _table##_config_entry = { \
         .table = _table, \
@@ -39,23 +39,9 @@ typedef struct ucg_config {
 
 /**
  * @ingroup UCG_CONFIG
- * @brief Initialize global configuration resources.
- * 
- * This routine should be invoked before any other config routines.
- */
-ucs_status_t ucg_config_global_init();
-
-/**
- * @ingroup UCG_CONFIG
- * @brief Release global configuration resources.
- */
-void ucg_config_global_cleanup();
-
-/**
- * @ingroup UCG_CONFIG
  * @brief Register a config entry to global.
  * 
- * Call @ref UCG_CONFIG_REGISTER_TABLER() instead.
+ * Call @ref UCG_CONFIG_REGISTER_TABLE() instead.
  */
 uint32_t ucg_config_register(ucs_config_global_list_entry_t *entry, uint32_t num_fields);
 

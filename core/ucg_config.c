@@ -1,4 +1,5 @@
 #include "ucg_config.h"
+#include "ucg_rte.h"
 
 #include <ucg/api/ucg.h>
 #include <ucs/debug/memtrack.h>
@@ -16,14 +17,14 @@ static ucg_config_mgr_t g_config_mgr = {
     .list = UCS_LIST_INITIALIZER(&g_config_mgr.list, &g_config_mgr.list),
     .entry = {
         .name = "UCG config",
-        .prefix = NULL,
+        .prefix = "GROUP_",
         .table = NULL,
         .size = sizeof(ucg_config_t),
     },
 };
 UCS_CONFIG_REGISTER_TABLE_ENTRY(&g_config_mgr.entry);
 
-ucs_status_t ucg_config_global_init()
+static ucs_status_t ucg_config_global_init()
 {
     ucs_config_field_t *field;
     field = (ucs_config_field_t*)ucs_calloc(g_config_mgr.num_fields + 1, 
@@ -49,7 +50,7 @@ ucs_status_t ucg_config_global_init()
     return 0;
 }
 
-void ucg_config_global_cleanup()
+static void ucg_config_global_cleanup()
 {
     ucs_free(g_config_mgr.entry.table);
     return;
@@ -155,3 +156,6 @@ ucs_status_t ucg_config_clone(const ucg_config_t *src, ucg_config_t **dst)
 
     return UCS_OK;
 }
+
+UCG_RTE_INNER_DEFINE(UCG_RTE_RESOURCE_TYPE_CONFIG, ucg_config_global_init, 
+                     ucg_config_global_cleanup);

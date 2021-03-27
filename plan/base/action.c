@@ -1,4 +1,6 @@
 #include "action.h"
+
+#include <ucg/core/ucg_rte.h>
 #include <ucs/datastruct/mpool.h>
 #include <ucs/arch/cpu.h>
 #include <ucs/debug/log.h>
@@ -28,6 +30,39 @@ static ucs_mpool_ops_t g_plan_action_mp_core_ops = {
     .obj_init = NULL,
     .obj_cleanup = NULL,
 };
+
+static ucs_status_t ucg_plan_action_global_init()
+{
+    if (g_action_mgr.inited) {
+        return UCS_OK;
+    }
+
+    ucs_status_t status = UCS_OK;
+    status = ucs_mpool_init(&g_action_mgr.action_mp, 0, sizeof(ucg_plan_action_t), 0, 
+                            UCS_SYS_CACHE_LINE_SIZE, 128, UINT_MAX, 
+                            &g_plan_action_mp_ops, "plan aciton");
+    if (status != UCS_OK) {
+        ucs_error("Fail to init action mpool.");
+        return status;
+    }
+
+    status = ucs_mpool_init(&g_action_mgr.action_core_mp, 0, sizeof(ucg_plan_action_core_t), 0, 
+                            UCS_SYS_CACHE_LINE_SIZE, 128, UINT_MAX, 
+                            &g_plan_action_mp_core_ops, "plan aciton core");
+    if (status != UCS_OK) {
+        ucs_error("Fail to init action core mpool.");
+        return status;
+    }
+    
+    return status;
+}
+
+static void ucg_plan_action_global_cleanup()
+{
+    ucs_mpool_cleanup(&g_action_mgr.action_core_mp, 1);
+    ucs_mpool_cleanup(&g_action_mgr.action_mp, 1);
+    return;
+}
 
 ucg_plan_action_t* ucg_plan_action_allocate(int with_core)
 {
@@ -59,35 +94,5 @@ void ucg_plan_action_release(ucg_plan_action_t *action)
     return;
 }
 
-ucs_status_t ucg_plan_action_global_init()
-{
-    if (g_action_mgr.inited) {
-        return UCS_OK;
-    }
-
-    ucs_status_t status = UCS_OK;
-    status = ucs_mpool_init(&g_action_mgr.action_mp, 0, sizeof(ucg_plan_action_t), 0, 
-                            UCS_SYS_CACHE_LINE_SIZE, 128, UINT_MAX, 
-                            &g_plan_action_mp_ops, "plan aciton");
-    if (status != UCS_OK) {
-        ucs_error("Fail to init action mpool.");
-        return status;
-    }
-
-    status = ucs_mpool_init(&g_action_mgr.action_core_mp, 0, sizeof(ucg_plan_action_core_t), 0, 
-                            UCS_SYS_CACHE_LINE_SIZE, 128, UINT_MAX, 
-                            &g_plan_action_mp_core_ops, "plan aciton core");
-    if (status != UCS_OK) {
-        ucs_error("Fail to init action core mpool.");
-        return status;
-    }
-    
-    return status;
-}
-
-void ucg_plan_action_global_cleanup()
-{
-    ucs_mpool_cleanup(&g_action_mgr.action_core_mp, 1);
-    ucs_mpool_cleanup(&g_action_mgr.action_mp, 1);
-    return;
-}
+UCG_RTE_INNER_DEFINE(UCG_RTE_RESOURCE_TYPE_ACTION, ucg_plan_action_global_init, 
+                     ucg_plan_action_global_cleanup)

@@ -18,39 +18,48 @@ typedef struct ucg_rte {
 } ucg_rte_t;
 static ucg_rte_t g_rte;
 
+ucg_rte_ops_t ucg_rte_ops[UCG_RTE_RESOURCE_TYPE_MAX];
 
 ucs_status_t ucg_rte_init(ucg_rte_params_t *params)
 {
-    if (params == NULL || params->type >= UCG_RTE_TYPE_LAST) {
-        return UCS_ERR_INVALID_PARAM;
-    }
+    UCG_CHECK_PARAMS(params != NULL && params->type < UCG_RTE_TYPE_LAST);
 
+    ucs_status_t status;
     if (params->type == UCG_RTE_TYPE_MPI) {
         // TODO: Check the validity of all fields
         memcpy(&g_rte.mpi, &params->mpi, sizeof(ucg_rte_mpi_t));
-    } 
+    } else {
+        ucs_assert(params->type == UCG_RTE_TYPE_MOCK);
+    }
 
     UCS_MODULE_FRAMEWORK_DECLARE(ucg);
     UCS_MODULE_FRAMEWORK_LOAD(ucg, 0);
-    ucs_status_t status;
-    status = ucg_plan_global_init();
-    if (status != UCS_OK) {
-        return status;
-    }
 
-    /* Execute last to ensure that all module configurations are loaded. */
-    status = ucg_config_global_init();
-    if (status != UCS_OK) {
-        return status;
+    // Initialize all rte resources.
+    for (int i = 0; i < UCG_RTE_RESOURCE_TYPE_MAX; ++i) {
+        if (ucg_rte_ops[i].init == NULL) {
+            continue;
+        }
+        status = ucg_rte_ops[i].init();
+        if (status != UCS_OK) {
+            goto err_cleanup;
+        }
     }
 
     return UCS_OK;
+err_cleanup:
+    ucg_rte_cleanup();
+    return status;
 }
 
 void ucg_rte_cleanup()
 {
-    ucg_config_global_cleanup();
-    ucg_plan_global_cleanup();
+    for (int i = 0; i < UCG_RTE_RESOURCE_TYPE_MAX; ++i) {
+        if (ucg_rte_ops[i].cleanup == NULL) {
+            continue;
+        }
+        ucg_rte_ops[i].cleanup();
+    }
     return;
 }
 

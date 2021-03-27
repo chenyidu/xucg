@@ -87,18 +87,6 @@ typedef struct ucg_plan_action {
 
 /**
  * @ingroup UCG_PLAN_ACTION
- * @brief Initialize the resource on which the action depends.
- */
-ucs_status_t ucg_plan_action_global_init();
-
-/**
- * @ingroup UCG_PLAN_ACTION
- * @brief Release the resource on which the action depends.
- */
-void ucg_plan_action_global_cleanup();
-
-/**
- * @ingroup UCG_PLAN_ACTION
  * @brief Allocate a action object.
  * 
  * @param [in] with_core Obtain action core at the same time or not.

@@ -77,6 +77,7 @@ typedef uint32_t ucg_group_id_t;
   * necessary information to perform collectives, so re-starting an operation
   * requires no additional parameters.
   */
-typedef void* ucg_request_h;
+typedef struct ucg_request ucg_request_t;
+typedef struct ucg_request* ucg_request_h;
 
 #endif

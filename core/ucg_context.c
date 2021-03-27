@@ -1,5 +1,6 @@
 #include "ucg_context.h"
 #include "ucg_config.h"
+#include "ucg_util.h"
 
 #include <ucg/api/ucg_version.h>
 #include <ucs/debug/debug.h>
@@ -34,7 +35,6 @@ ucs_status_t ucg_init_version(unsigned api_major_version,
         status = UCS_ERR_NO_MEMORY;
         goto err;
     }
-    ucs_list_head_init(&context->group_head);
 
     if (config == NULL) {
         status = ucg_config_read(NULL, NULL, &context->config);
@@ -66,15 +66,13 @@ ucs_status_t ucg_init(const ucg_params_t *params,
                       const ucg_config_t *config,
                       ucg_context_h *context)
 {
+    UCG_CHECK_PARAMS(params != NULL && config != NULL);
     return ucg_init_version(UCG_API_MAJOR, UCG_API_MINOR, params, config, context);
 }
 
 void ucg_cleanup(ucg_context_h context)
 {
-    if (!ucs_list_is_empty(&context->group_head)) {
-        ucs_warn("Some ucg group are not destroyed, there is a problem with "
-                 "the order of releasing resources.");
-    }
+    UCG_CHECK_PARAMS_VOID(context != NULL);
     ucg_config_release(context->config);
     ucg_ppool_destroy(context->ppool);
     return;

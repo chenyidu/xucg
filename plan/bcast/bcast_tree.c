@@ -24,7 +24,7 @@ static ucs_config_field_t g_bcast_ktree_config_table[] = {
      ucs_offsetof(ucg_plan_bcast_ktree_config_t, degree), UCS_CONFIG_TYPE_UINT},
     {NULL},
 };
-UCG_CONFIG_REGISTER_TABLER(g_bcast_ktree_config_table, "BCAST KTREE", NULL, 
+UCG_CONFIG_REGISTER_TABLE(g_bcast_ktree_config_table, "BCAST KTREE", NULL, 
                            ucg_plan_bcast_ktree_config_t);
 
 

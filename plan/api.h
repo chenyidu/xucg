@@ -7,13 +7,9 @@
 #define UCG_PLAN_API_H_
 
 #include <ucg/api/ucg.h>
+#include <ucg/core/ucg_util.h>
 #include <ucs/sys/preprocessor.h>
 #include <ucs/sys/compiler_def.h>
-
-/* Assertions which are checked in compile-time. 
- * TODO: move to appropriate file. 
- */
-#define UCG_STATIC_ASSERT(_cond) typedef int UCS_PP_APPEND_UNIQUE_ID(assert)[(_cond)?1:-1]
 
 /* The ID after 10000 is reserved for x plan. */
 #define UCG_PLAN_ID_MAX 10000
@@ -130,19 +126,12 @@ typedef struct ucg_plan_barrier_params {
 } ucg_plan_barrier_params_t;
 
 typedef struct ucg_plan ucg_plan_t;
-/**
- * @ingroup UCG_PLAN
- * @brief Initialize plan resources.
- * 
- * This routine shoule be called before any other plan routines.
- */
-ucs_status_t ucg_plan_global_init();
 
 /**
  * @ingroup UCG_PLAN
- * @brief Release plan resources.
+ * @brief Plan type string.
  */
-void ucg_plan_global_cleanup();
+const char* ucg_plan_type_str(ucg_plan_type_t type);
 
 /**
  * @ingroup UCG_PLAN

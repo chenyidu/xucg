@@ -4,6 +4,7 @@
 #
 
 sources = ucg_version.c \
+          ucg_util.h \
           ucg_channel.h \
           ucg_channel.c \
           ucg_context.h \

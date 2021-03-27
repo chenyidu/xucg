@@ -1,5 +1,7 @@
 #include "plan.h"
 
+#include <ucg/core/ucg_util.h>
+#include <ucg/core/ucg_rte.h>
 #include <ucs/debug/log.h>
 #include <ucs/datastruct/khash.h>
 #include <ucs/debug/assert.h>
@@ -9,6 +11,9 @@
 
 #include <string.h>
 
+/*****************************************************************************
+ *                   Part related to plan params
+ *****************************************************************************/
 #define UCG_PLAN_CLONE_BASIC_PARAMS(_derived_plan_type, _derived_params_type) \
     _derived_plan_type *plan = ucs_derived_of(plan_p, _derived_plan_type); \
     _derived_params_type *src = &plan->params; \
@@ -37,24 +42,13 @@ static ucs_status_t ucg_plan_basic_params_clone(const ucg_plan_params_t *src,
                                                 ucg_plan_params_t *dst)
 {
     dst->type = src->type;
-    dst->members.count = src->members.count;
-    dst->members.self = src->members.self;
-    int alloc_size = dst->members.count * sizeof(ucg_mh_t);
-    ucg_mh_t *mh = ucs_malloc(alloc_size, "plan members");
-    if (mh == NULL) {
-        return UCS_ERR_NO_MEMORY;
-    }
-    memcpy(mh, src->members.mh, alloc_size);
-    dst->members.mh = mh; 
-    return UCS_OK;
+    dst->id = src->id;
+    return ucg_group_members_clone(&src->members, &dst->members);
 }
 
 void ucg_plan_basic_params_free(ucg_plan_params_t *params)
 {
-    if (params->members.mh != NULL) {
-        ucs_free(params->members.mh);
-        params->members.mh = NULL;
-    }
+    ucg_group_members_free(&params->members);
     return;
 }
 
@@ -121,20 +115,23 @@ static ucg_plan_params_method_t g_params_methods[] = {
     },
 };
 
-ucs_status_t ucg_plan_clone_params(ucg_plan_t *plan, const ucg_plan_params_t *params)
+static ucs_status_t ucg_plan_clone_params(ucg_plan_t *plan, const ucg_plan_params_t *params)
 {
     ucg_plan_type_t type = plan->core->id.type;
     ucs_assert(type < sizeof(g_params_methods) / sizeof(ucg_plan_params_method_t));
     return g_params_methods[type].clone(plan, params);
 }
 
-void ucg_plan_free_params(ucg_plan_t *plan)
+static void ucg_plan_free_params(ucg_plan_t *plan)
 {
     ucg_plan_type_t type = plan->core->id.type;
     ucs_assert(type < sizeof(g_params_methods) / sizeof(ucg_plan_params_method_t));
     return g_params_methods[type].free(plan);
 }
 
+/*****************************************************************************
+ *                    Part related to plan action
+ *****************************************************************************/
 ucs_status_t ucg_plan_create_and_append_action(ucg_plan_t *plan, 
                                                ucg_plan_action_type_t type, 
                                                ucg_rank_t *peers, int count)
@@ -160,6 +157,9 @@ void ucg_plan_release_actions(ucg_plan_t *plan)
     return;
 }
 
+/*****************************************************************************
+ *                    Part related to plan
+ *****************************************************************************/
 KHASH_MAP_INIT_INT64(plan, ucg_plan_t*);
 static khash_t(plan) g_plan_hash;
 static uint32_t g_max_plan_size;
@@ -170,6 +170,25 @@ static ucs_mpool_ops_t g_plan_mp_ops = {
     .obj_init = ucs_empty_function,
     .obj_cleanup = ucs_empty_function,
 };
+
+static ucs_status_t ucg_plan_global_init()
+{
+    ucs_status_t status;
+    status = ucs_mpool_init(&g_plan_mp, 0, g_max_plan_size, 0, UCS_SYS_CACHE_LINE_SIZE, 
+                            128, UINT_MAX, &g_plan_mp_ops, "ucg plan");
+    if (status != UCS_OK) {
+        ucs_error("Failed to init plan mpool, %s", ucs_status_string(status));
+        return status;
+    }
+
+    return UCS_OK;
+}
+
+static void ucg_plan_global_cleanup()
+{
+    ucs_mpool_cleanup(&g_plan_mp, 1);
+    return;
+}
 
 static ucs_status_t ucg_plan_constructor(ucg_plan_t *self, ucg_plan_t *other, 
                                          const ucg_config_t *config)
@@ -294,28 +313,5 @@ void ucg_plan_free(ucg_plan_t *plan)
     return;
 }
 
-ucs_status_t ucg_plan_global_init()
-{
-    ucs_status_t status;
-    status = ucg_plan_action_global_init();
-    if (status != UCS_OK) {
-        ucs_error("Failed to init action, %s", ucs_status_string(status));
-        return status;
-    }
-
-    status = ucs_mpool_init(&g_plan_mp, 0, g_max_plan_size, 0, UCS_SYS_CACHE_LINE_SIZE, 
-                            128, UINT_MAX, &g_plan_mp_ops, "ucg plan mp");
-    if (status != UCS_OK) {
-        ucs_error("Failed to init plan mpool, %s", ucs_status_string(status));
-        return status;
-    }
-
-    return UCS_OK;
-}
-
-void ucg_plan_global_cleanup()
-{
-    ucs_mpool_cleanup(&g_plan_mp, 1);
-    ucg_plan_action_global_cleanup();
-    return;
-}
+UCG_RTE_INNER_DEFINE(UCG_RTE_RESOURCE_TYPE_PLAN, ucg_plan_global_init, 
+                     ucg_plan_global_cleanup);

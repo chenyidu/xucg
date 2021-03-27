@@ -14,14 +14,15 @@
  * @brief UCG Runtime Enviroment Type.
  */
 typedef enum ucg_rte_type {
-    UCG_RTE_TYPE_MPI,
+    UCG_RTE_TYPE_MPI, /**< For MPI enviroment. */
+    UCG_RTE_TYPE_MOCK, /**< For debug purpose. */
     UCG_RTE_TYPE_LAST,
 } ucg_rte_type_t;
 
 typedef enum ucg_group_params_field {
     UCG_GROUP_PARAMS_UCP_WORKER = UCS_BIT(0),
-    UCG_GROUP_PARAMS_ID = UCS_BIT(1),
-    UCG_GROUP_PARAMS_MEMBERS = UCS_BIT(1),
+    UCG_GROUP_PARAMS_GROUP_ID = UCS_BIT(1),
+    UCG_GROUP_PARAMS_GROUP_MEMBERS = UCS_BIT(1),
 } ucg_group_params_field_t;
 
 /**
