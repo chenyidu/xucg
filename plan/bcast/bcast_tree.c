@@ -53,14 +53,14 @@ static ucs_status_t ucg_plan_bcast_ktree_calc_node(ucg_plan_bcast_tree_t *plan,
 {
     ucg_plan_bcast_ktree_config_t *ktree_config = UCG_CONFIG_CONVERT(config, ucg_plan_bcast_ktree_config_t);
     ucg_group_members_t *members = &plan->super.params.super.members;
-    ucg_plan_ktree_params_t btree_params = {
+    ucg_plan_ktree_params_t ktree_params = {
         .self = members->self,
         .root = plan->super.params.root,
         .size = members->count,
         .degree = ktree_config->degree,
     };
     // For bcast, leftmost tree has better parallelism.
-    ucs_status_t status = ucg_algo_ktree_left(&btree_params, node);
+    ucs_status_t status = ucg_algo_ktree_left(&ktree_params, node);
     if (status != UCS_OK) {
         ucs_error("Fail to calculate knomial tree node, %s.", ucs_status_string(status));
         return status;
@@ -96,7 +96,7 @@ static ucs_status_t ucg_plan_bcast_tree_build_actions(ucg_plan_bcast_tree_t *pla
         /* Let COPY after FORWARD, so that COPY and FORWARD may be in parallel.
            FORWARD use NIC, COPY use CPU. */
         status = ucg_plan_create_and_append_action(bplan, 
-                                                   UCG_PLAN_ACTION_TYPE_RECV, 
+                                                   UCG_PLAN_ACTION_TYPE_COPY, 
                                                    &node->father, 1);
         if (status != UCS_OK) {
             goto release_actions;

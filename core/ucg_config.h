@@ -26,7 +26,7 @@
     }
 
 #define UCG_CONFIG_CONVERT(config, _type) \
-    (_type*)(config + _type##_offset); \
+    (_type*)((uint8_t*)config + _type##_offset); \
 
 /**
  * @ingroup UCG_CONFIG

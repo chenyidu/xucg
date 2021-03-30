@@ -170,4 +170,12 @@ ucg_plan_t* ucg_plan_clone(ucg_plan_t *plan, const ucg_config_t *config,
  */
 void ucg_plan_free(ucg_plan_t *plan);
 
+/**
+ * @ingroup UCG_PLAN
+ * @brief Free a plan.
+ * 
+ * Print plan's information, just for debug purpose.
+ */
+void ucg_plan_print(ucg_plan_t *plan, FILE *stream);
+
 #endif

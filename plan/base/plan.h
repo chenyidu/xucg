@@ -132,6 +132,10 @@ ucs_status_t ucg_plan_create_and_append_action(ucg_plan_t *plan,
                                                ucg_plan_action_type_t type, 
                                                ucg_rank_t *peers, int count);
 
+/**
+ * @ingroup UCG_PLAN
+ * @brief Free all actions in this plan.
+ */
 void ucg_plan_release_actions(ucg_plan_t *plan);
 
 /**

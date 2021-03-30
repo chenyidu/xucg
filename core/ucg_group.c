@@ -1,5 +1,6 @@
 #include "ucg_group.h"
 #include "ucg_util.h"
+#include "ucg_request.h"
 
 ucs_status_t ucg_group_apply_params(ucg_group_t *group, const ucg_group_params_t *params)
 {
@@ -40,20 +41,21 @@ ucs_status_t ucg_group_create(ucg_context_h context,
     if (grp == NULL) {
         return UCS_ERR_NO_MEMORY;
     }
+
     grp->context = context;
     ucs_status_t status = ucg_group_apply_params(grp, params);
     if (status != UCS_OK) {
         goto err_free_group;
     }
-    // request id start from 1.
-    grp->next_req_id = 1;
-    ucs_list_head_init(&grp->outstanding_req);
-    ucs_queue_head_init(&grp->pending_req);
-    grp->is_barrier = 0;
 
+    grp->is_barrier = 0;
+    grp->next_req_id = 0;
+    ucs_callbackq_init(&grp->progress_q);
+    
     *group = grp;
     return UCS_OK;
-
+err_release_params:
+    ucg_group_release_params(grp);
 err_free_group:
     ucs_free(grp);
     return status;
@@ -62,7 +64,14 @@ err_free_group:
 void ucg_group_destroy(ucg_group_h group)
 {
     UCG_CHECK_PARAMS_VOID(group != NULL);
+    ucs_callbackq_cleanup(&group->progress_q);
     ucg_group_release_params(group);
     ucs_free(group);
     return;
+}
+
+int ucg_group_progress(ucg_group_h group)
+{
+    UCG_CHECK_PARAMS_ZERO(group != NULL);
+    return ucs_callbackq_dispatch(&group->progress_q);
 }

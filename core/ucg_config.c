@@ -5,6 +5,7 @@
 #include <ucs/debug/memtrack.h>
 #include <ucs/sys/string.h>
 #include <ucs/sys/preprocessor.h>
+#include <ucs/debug/log.h>
 
 typedef struct ucg_config_mgr {
     uint32_t num_fields; /* Number of fileds of all config table. */

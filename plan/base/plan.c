@@ -8,6 +8,7 @@
 #include <ucs/debug/memtrack.h>
 #include <ucs/datastruct/mpool.h>
 #include <ucs/arch/cpu.h>
+#include <ucs/type/spinlock.h>
 
 #include <string.h>
 
@@ -16,8 +17,8 @@
  *****************************************************************************/
 #define UCG_PLAN_CLONE_BASIC_PARAMS(_derived_plan_type, _derived_params_type) \
     _derived_plan_type *plan = ucs_derived_of(plan_p, _derived_plan_type); \
-    _derived_params_type *src = &plan->params; \
-    _derived_params_type *dst = ucs_derived_of(dst_p, _derived_params_type); \
+    _derived_params_type *dst = &plan->params; \
+    _derived_params_type *src = ucs_derived_of(src_p, _derived_params_type); \
     ucs_status_t status = ucg_plan_basic_params_clone(&src->super, &dst->super); \
     if (status != UCS_OK) { \
         return status; \
@@ -53,7 +54,7 @@ void ucg_plan_basic_params_free(ucg_plan_params_t *params)
 }
 
 static ucs_status_t ucg_plan_bcast_clone_params(ucg_plan_t *plan_p, 
-                                                const ucg_plan_params_t *dst_p)
+                                                const ucg_plan_params_t *src_p)
 {
     UCG_PLAN_CLONE_BASIC_PARAMS(ucg_plan_bcast_t, ucg_plan_bcast_params_t);
     dst->buffer = src->buffer;
@@ -70,7 +71,7 @@ static void ucg_plan_bcast_free_params(ucg_plan_t *plan_p)
 }
 
 static ucs_status_t ucg_plan_allreduce_clone_params(ucg_plan_t *plan_p, 
-                                                    const ucg_plan_params_t *dst_p)
+                                                    const ucg_plan_params_t *src_p)
 {
     UCG_PLAN_CLONE_BASIC_PARAMS(ucg_plan_allreduce_t, ucg_plan_allreduce_params_t);
     dst->sendbuf = src->sendbuf;
@@ -88,7 +89,7 @@ static void ucg_plan_allreduce_free_params(ucg_plan_t *plan_p)
 }
 
 static ucs_status_t ucg_plan_barrier_clone_params(ucg_plan_t *plan_p, 
-                                                  const ucg_plan_params_t *dst_p)
+                                                  const ucg_plan_params_t *src_p)
 {
     UCG_PLAN_CLONE_BASIC_PARAMS(ucg_plan_barrier_t, ucg_plan_barrier_params_t);
     return UCS_OK;
@@ -161,32 +162,50 @@ void ucg_plan_release_actions(ucg_plan_t *plan)
  *                    Part related to plan
  *****************************************************************************/
 KHASH_MAP_INIT_INT64(plan, ucg_plan_t*);
-static khash_t(plan) g_plan_hash;
-static uint32_t g_max_plan_size;
-static ucs_mpool_t g_plan_mp;
-static ucs_mpool_ops_t g_plan_mp_ops = {
-    .chunk_alloc = ucs_mpool_hugetlb_malloc,
-    .chunk_release = ucs_mpool_hugetlb_free,
-    .obj_init = ucs_empty_function,
-    .obj_cleanup = ucs_empty_function,
+typedef struct ucg_plan_mgr {
+    UCG_THREAD_SAFE_DECLARE(lock); /* Protect get/put on plan_mp, other fields is readonly. */
+    khash_t(plan) plan_hash;
+    uint32_t max_plan_size; 
+    ucs_mpool_t plan_mp;
+    ucs_mpool_ops_t mp_ops;
+} ucg_plan_mgr_t;
+
+static ucg_plan_mgr_t g_plan_mgr = {
+    .mp_ops = {
+        .chunk_alloc = ucs_mpool_hugetlb_malloc,
+        .chunk_release = ucs_mpool_hugetlb_free,
+        .obj_init = ucs_empty_function,
+        .obj_cleanup = ucs_empty_function,
+    },
 };
 
 static ucs_status_t ucg_plan_global_init()
 {
     ucs_status_t status;
-    status = ucs_mpool_init(&g_plan_mp, 0, g_max_plan_size, 0, UCS_SYS_CACHE_LINE_SIZE, 
-                            128, UINT_MAX, &g_plan_mp_ops, "ucg plan");
+    status = UCG_THREAD_SAFE_INIT(&g_plan_mgr.lock);
+    if (status != UCS_OK) {
+        ucs_error("Failed to init thread safe.");
+        goto err;
+    }
+
+    status = ucs_mpool_init(&g_plan_mgr.plan_mp, 0, g_plan_mgr.max_plan_size, 0, UCS_SYS_CACHE_LINE_SIZE, 
+                            128, UINT_MAX, &g_plan_mgr.mp_ops, "ucg plan");
     if (status != UCS_OK) {
         ucs_error("Failed to init plan mpool, %s", ucs_status_string(status));
-        return status;
+        goto err_destroy_thread_safe;
     }
 
     return UCS_OK;
+err_destroy_thread_safe:
+    UCG_THREAD_SAFE_DESTROY(&g_plan_mgr.lock);
+err:
+    return status;
 }
 
 static void ucg_plan_global_cleanup()
 {
-    ucs_mpool_cleanup(&g_plan_mp, 1);
+    ucs_mpool_cleanup(&g_plan_mgr.plan_mp, 1);
+    UCG_THREAD_SAFE_DESTROY(&g_plan_mgr.lock);
     return;
 }
 
@@ -210,18 +229,18 @@ void ucg_plan_register(ucg_plan_t *plan)
 {
     static int inited = 0;
     if (!inited) {
-        kh_init_inplace(plan, &g_plan_hash);
+        kh_init_inplace(plan, &g_plan_mgr.plan_hash);
         inited = 1;
     }
 
     int ret = 0;
-    khiter_t iter = kh_put(plan, &g_plan_hash, 
+    khiter_t iter = kh_put(plan, &g_plan_mgr.plan_hash, 
                            ucg_plan_id_pack(&plan->core->id), &ret);
     ucs_assert(ret == 1);
-    kh_value(&g_plan_hash, iter) = plan;
+    kh_value(&g_plan_mgr.plan_hash, iter) = plan;
     ucs_assert(plan->core->plan_size >= sizeof(ucg_plan_t));
-    if (g_max_plan_size < plan->core->plan_size) {
-        g_max_plan_size =  plan->core->plan_size;
+    if (g_plan_mgr.max_plan_size < plan->core->plan_size) {
+        g_plan_mgr.max_plan_size =  plan->core->plan_size;
     }
     return;
 }
@@ -249,7 +268,9 @@ ucg_plan_t* ucg_plan_clone(ucg_plan_t *plan, const ucg_config_t *config,
         return plan;
     }
 
-    ucg_plan_t *self = (ucg_plan_t*)ucs_mpool_get(&g_plan_mp);
+    UCG_THREAD_SAFE_ENTER(&g_plan_mgr.lock);
+    ucg_plan_t *self = (ucg_plan_t*)ucs_mpool_get(&g_plan_mgr.plan_mp);
+    UCG_THREAD_SAFE_LEAVE(&g_plan_mgr.lock);
     if (self == NULL) {
         ucs_error("Failed to allocate plan.");
         return NULL;
@@ -282,13 +303,13 @@ ucg_plan_t* ucg_plan_create(const ucg_plan_id_t *id, const ucg_config_t *config,
                             const ucg_plan_params_t *params)
 {
     // Find plan template.
-    khiter_t iter = kh_get(plan, &g_plan_hash, ucg_plan_id_pack(id));
-    if (iter == kh_end(&g_plan_hash)) {
+    khiter_t iter = kh_get(plan, &g_plan_mgr.plan_hash, ucg_plan_id_pack(id));
+    if (iter == kh_end(&g_plan_mgr.plan_hash)) {
         ucs_error("Failed to find the plan(type:%s, algo:%d).", 
                     ucg_plan_type_str(id->type), id->algo);
         return NULL;
     }
-    ucg_plan_t *plan = kh_value(&g_plan_hash, iter);  
+    ucg_plan_t *plan = kh_value(&g_plan_mgr.plan_hash, iter);  
     return ucg_plan_clone(plan, config, params, UCG_PLAN_CLONE_ADVICE_UNEQUAL);
 }
 
@@ -300,6 +321,10 @@ void ucg_plan_free(ucg_plan_t *plan)
 
     ucg_plan_destructor(plan);
     ucg_plan_free_params(plan);
+
+    UCG_THREAD_SAFE_ENTER(&g_plan_mgr.lock);
+    ucs_mpool_put(plan);
+    UCG_THREAD_SAFE_LEAVE(&g_plan_mgr.lock);
 
     if (plan->dt.pack_state != NULL) {
         ucg_dt_state_finish(plan->dt.pack_state);
@@ -313,5 +338,21 @@ void ucg_plan_free(ucg_plan_t *plan)
     return;
 }
 
+void ucg_plan_print(ucg_plan_t *plan, FILE *stream)
+{
+    fprintf(stream, "#\n");
+    fprintf(stream, "# %s plan based on algo %d\n", ucg_plan_type_str(plan->core->id.type), plan->core->id.algo);
+    fprintf(stream, "#\n");
+    ucg_plan_action_t *action;
+    uint32_t idx = 0;
+    ucs_list_for_each (action, &plan->action_list, list) {
+        fprintf(stream, "# Action[%d]\n", idx++);
+        ucg_plan_action_print(action, stream);
+    }
+    fprintf(stream, "\n");
+    return;
+}
+
 UCG_RTE_INNER_DEFINE(UCG_RTE_RESOURCE_TYPE_PLAN, ucg_plan_global_init, 
                      ucg_plan_global_cleanup);
+ 

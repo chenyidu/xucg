@@ -8,7 +8,9 @@
 
 #include <ucg/plan/api.h>
 
-typedef struct ucg_ppool ucg_ppool_t;
+typedef struct ucg_ppool {
+    int mask;
+} ucg_ppool_t;
 
 /**
  * @ingroup UCG_PPOOL

@@ -308,6 +308,10 @@ ucs_status_t ucg_request_check_status(ucg_request_h request);
 /**
  * @ingroup UCG_REQUEST
  * @brief Cancel the request.
+ *
+ * This routine tries to cancel an outstanding request. After calling this routine,
+ * the @b request will be in completed or canceled state. If it's canceled state, 
+ * the @ref ucg_request_check_status() will return UCS_ERR_CANCELED.
  */
 ucs_status_t ucg_request_cancel(ucg_request_h request);
 
@@ -315,6 +319,6 @@ ucs_status_t ucg_request_cancel(ucg_request_h request);
  * @ingroup UCG_REQUEST
  * @brief Free the request.
  */
-ucs_status_t ucg_request_free(ucg_request_h request);
+void ucg_request_free(ucg_request_h request);
 
 #endif

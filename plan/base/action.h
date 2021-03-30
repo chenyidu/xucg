@@ -14,7 +14,7 @@
 /* Maximum number of elements in buffer vector. */
 #define UCG_PLAN_PHASE_BUFFER_VEC_MAX_NUM 10
 
-/* Maximum number of peers in a phase. */
+/* Maximum number of peers in a action. */
 #define UCG_PLAN_PHASE_PEERS_MAX_NUM 64
 
 /**
@@ -115,10 +115,24 @@ static inline void ucg_plan_action_init_core(ucg_plan_action_t *action,
  * @ingroup UCG_PLAN_ACTION
  * @brief Increase refcount of action core and return it.
  */
-static inline ucg_plan_action_core_t* ucg_plan_action_obtain_core(ucg_plan_action_t* phase)
+static inline ucg_plan_action_core_t* ucg_plan_action_obtain_core(ucg_plan_action_t* action)
 {
-    phase->core->refcount++;
-    return phase->core;
+    action->core->refcount++;
+    return action->core;
 }
 
-#endif;
+/**
+ * @ingroup UCG_PLAN
+ * @brief Plan action type string.
+ */
+const char* ucg_plan_action_type_str(ucg_plan_action_type_t type);
+
+/**
+ * @ingroup UCG_PLAN
+ * @brief Free a plan.
+ * 
+ * Print action's information, just for debug purpose.
+ */
+void ucg_plan_action_print(ucg_plan_action_t *action, FILE *stream);
+
+#endif

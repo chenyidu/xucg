@@ -19,24 +19,24 @@ ucs_status_t ucg_algo_ktree_left(const ucg_plan_ktree_params_t *params,
     uint32_t mask = 1;
     if (root == self) {
         node->father_cnt = 0;
-    } else {
-        while (mask < size) {
-            if (vself % (degree * mask)) {
-                node->father = vself / (degree * mask) * (degree * mask);
-                node->father = (node->father + root) % size;
-                node->father_cnt = 1;
-                break;
-            }
-            mask *= degree;
-        }
-    }
+    } 
 
+    while (mask < size) {
+        if (vself % (degree * mask)) {
+            node->father = vself / (degree * mask) * (degree * mask);
+            node->father = (node->father + root) % size;
+            node->father_cnt = 1;
+            break;
+        }
+        mask *= degree;
+    }
+    
     mask /= degree;
     uint32_t cnt = 0;
     uint32_t max_cnt = node->child_cnt;
     uint32_t vrank = 0;
     while(mask > 0) {
-       for (int i = 0; i < degree; ++i) {
+       for (int i = 1; i < degree; ++i) {
            vrank = vself + mask * i;
            if (vrank < size) {
                vrank = (vrank + root) % size;
@@ -55,7 +55,7 @@ ucs_status_t ucg_algo_ktree_left(const ucg_plan_ktree_params_t *params,
 ucs_status_t ucg_algo_ktree_right(const ucg_plan_ktree_params_t *params, 
                                   ucg_plan_tree_node_t *node)
 {
-ucs_assert(params != NULL && node->child != NULL);
+    ucs_assert(params != NULL && node->child != NULL);
     
     ucg_rank_t self = params->self;
     ucg_rank_t root = params->root;
@@ -67,24 +67,24 @@ ucs_assert(params != NULL && node->child != NULL);
     uint32_t mask = 1;
     if (root == self) {
         node->father_cnt = 0;
-    } else {
-        while (mask < size) {
-            if (vself % (degree * mask)) {
-                node->father = vself / (degree * mask) * (degree * mask);
-                node->father = (node->father + root) % size;
-                node->father_cnt = 1;
-                break;
-            }
-            mask *= degree;
-        }
     }
+
+    while (mask < size) {
+        if (vself % (degree * mask)) {
+            node->father = vself / (degree * mask) * (degree * mask);
+            node->father = (node->father + root) % size;
+            node->father_cnt = 1;
+            break;
+        }
+        mask *= degree;
+    } 
 
     mask /= degree;
     uint32_t cnt = 0;
     uint32_t max_cnt = node->child_cnt;
     uint32_t vrank = 0;
     while(mask > 0) {
-       for (int i = 0; i < degree; ++i) {
+       for (int i = 1; i < degree; ++i) {
            vrank = vself + mask * i;
            if (vrank < size) {
                vrank = (vrank + root) % size;

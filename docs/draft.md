@@ -189,6 +189,16 @@ struct plan_config_entry{
     ucs_config_global_list_entry_t entry;
 };
 ``
+# 多线程安全
+1. 对UCG使用的全局变量做加锁操作。
+2. 因为调用的ucs、uct等接口都非线程安全，对于此类资源也需要进行加锁，特别是iface、ep的使用。锁粒度为ucp worker级别，即同一ucp worker的资源加一把锁。
+
+考虑的多线程场景为
+1. 多group并行
+2. 单group下多request并行
+
+不考虑的多线程场景为
+1. 单request并行：单request并行必然导致结果错误，因此不考虑该场景。
 
 # 附录
 ## planner是否有存在的必要？—— 否
