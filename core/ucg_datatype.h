@@ -23,7 +23,7 @@ uint64_t ucg_dt_size(ucg_datatype_t *dt);
  * @ingroup UCG_DT
  * @brief Create a pack state.
  */
-ucg_dt_state_t* ucg_dt_pack_state(ucg_datatype_t *dt, void *buffer, uint32_t count);
+ucg_dt_state_t* ucg_dt_pack_state(ucg_datatype_t *dt, const void *buffer, uint32_t count);
 
 /**
  * @ingroup UCG_DT

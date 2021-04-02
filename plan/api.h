@@ -70,6 +70,17 @@ typedef enum ucg_plan_clone_advice {
     UCG_PLAN_CLONE_ADVICE_UNEQUAL, /* Critical parts are different, not clone but creating a new one. */
 } ucg_plan_clone_advice_t;
 
+/**
+ * @ingroup UCG_PLAN
+ * @brief Plan handle.
+ *
+ * A plan can have many handles, just like a file can have many file handles.
+ * Plan handle is stateful, just like each file handle contains its offset.
+ * The value of a valid handle is greater than 0. It is safe to operate different 
+ * handles of the same plan in parallel.
+ */
+typedef uint64_t ucg_plan_handle_t;
+
 typedef int ucg_plan_algo_t;
 /**
  * @ingroup UCG_PLAN
@@ -172,10 +183,47 @@ void ucg_plan_free(ucg_plan_t *plan);
 
 /**
  * @ingroup UCG_PLAN
+ * @brief Open a plan handle.
+ * 
+ * @param [in] plan 
+ * @param [in] gid Group ID.
+ * @param [in] rid Request ID.
+ * @return > 0 is valid, 0 is invalid.
+ */
+ucg_plan_handle_t ucg_plan_open(ucg_plan_t *plan, ucg_group_id_t gid, uint32_t rid);
+
+/**
+ * @ingroup UCG_PLAN
+ * @brief Open a plan to execute.
+ * 
+ * @return UCS_OK All actions in this plan are done.
+ * @return UCS_INPROGRESS Some conditions have not been met, so the execution 
+ *                        cannot continue, try it later.
+ * @return Otherwise Failed.
+ */
+ucs_status_t ucg_plan_execute(ucg_plan_handle_t handle);
+
+/**
+ * @ingroup UCG_PLAN
+ * @brief Close a plan handle.
+ *
+ * When execution is done or failed, it's need to invoke this routine to close 
+ * the handle.
+ */
+void ucg_plan_close(ucg_plan_handle_t handle);
+
+/**
+ * @ingroup UCG_PLAN
  * @brief Free a plan.
  * 
  * Print plan's information, just for debug purpose.
  */
 void ucg_plan_print(ucg_plan_t *plan, FILE *stream);
+
+/**
+ * @ingroup UCG_PLAN
+ * @brief Query plan's type. 
+ */
+ucg_plan_type_t ucg_plan_type(ucg_plan_t *plan);
 
 #endif

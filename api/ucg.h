@@ -283,7 +283,9 @@ ucs_status_t ucg_request_barrier_init(ucg_group_h group, ucg_request_h *request)
 
 /**
  * @ingroup UCG_REQUEST
- * @brief Start a initialized request.
+ * @brief Start a request.
+ *
+ * If a request is completed or canceled, it can be started again.
  */
 ucs_status_t ucg_request_start(ucg_request_h request);
 
@@ -291,7 +293,7 @@ ucs_status_t ucg_request_start(ucg_request_h request);
  * @ingroup UCG_REQUEST
  * @brief Progress a started request.
  *
- * @return Non-zero if any communication was progressed, zero otherwise.
+ * @return Non-zero if any event was progressed, zero otherwise.
  */
 int ucg_request_progress(ucg_request_h request);
 
@@ -301,7 +303,7 @@ int ucg_request_progress(ucg_request_h request);
  *
  * This routine checks the state of the request and returns its current status.
  * Any value different from UCS_INPROGRESS means that request is in a completed
- * state.
+ * state. Only when the request is in a completed state, it can be freed.
  */
 ucs_status_t ucg_request_check_status(ucg_request_h request);
 
@@ -309,11 +311,11 @@ ucs_status_t ucg_request_check_status(ucg_request_h request);
  * @ingroup UCG_REQUEST
  * @brief Cancel the request.
  *
- * This routine tries to cancel an outstanding request. After calling this routine,
- * the @b request will be in completed or canceled state. If it's canceled state, 
- * the @ref ucg_request_check_status() will return UCS_ERR_CANCELED.
+ * This routine tries to cancel a pending request. If the request is outstanding 
+ * state, it cannot be cancelled. It need to call @ref ucg_request_check_status() 
+ * to check whether it's UCS_ERR_CANCELED or not.
  */
-ucs_status_t ucg_request_cancel(ucg_request_h request);
+void ucg_request_cancel(ucg_request_h request);
 
 /**
  * @ingroup UCG_REQUEST

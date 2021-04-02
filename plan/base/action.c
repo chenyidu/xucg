@@ -98,11 +98,11 @@ void ucg_plan_action_release(ucg_plan_action_t *action)
     if (--action->core->refcount == 0) {
         UCG_THREAD_SAFE_ENTER(&g_action_mgr.lock);
         ucs_mpool_put(action->core);
-        UCG_THREAD_SAFE_ENTER(&g_action_mgr.lock);
+        UCG_THREAD_SAFE_LEAVE(&g_action_mgr.lock);
     }
     UCG_THREAD_SAFE_ENTER(&g_action_mgr.lock);
     ucs_mpool_put(action);
-    UCG_THREAD_SAFE_ENTER(&g_action_mgr.lock);
+    UCG_THREAD_SAFE_LEAVE(&g_action_mgr.lock);
     return;
 }
 

@@ -12,6 +12,12 @@
 #include <ucs/datastruct/list.h>
 #include <ucs/datastruct/queue.h>
 #include <ucs/datastruct/callbackq.h>
+#include <ucs/arch/atomic.h>
+
+/* Indicate the group is in barrier state. */
+#define UCG_GROUP_BARRIER 1
+/* Indicate the group is not in barrier state. */
+#define UCG_GROUP_NBARRIER 0
 
 /**
  * @ingroup UCG_GROUP
@@ -39,15 +45,22 @@ static inline uint32_t ucg_group_next_req_id(ucg_group_t *group)
     return group->next_req_id++;
 }
 
-static inline uint8_t ucg_group_is_barrier(ucg_group_t *group)
-{   
-    return group->is_barrier;
-}
-
-static inline void ucg_group_set_barrier(ucg_group_t *group)
+static inline uint8_t ucg_group_barrier_cswap(ucg_group_t *group, uint8_t expected, 
+                                              uint8_t desired)
 {
-    group->is_barrier = 1;
-    return;
+    ucs_assert(expected == UCG_GROUP_BARRIER || expected == UCG_GROUP_NBARRIER);
+    ucs_assert(desired == UCG_GROUP_BARRIER || desired == UCG_GROUP_NBARRIER);
+#if ENABLE_MT
+    return ucs_atomic_cswap8(&group->is_barrier, expected, desired);
+#else
+    uint8_t prev = group->is_barrier;
+    if (prev == expected) {
+        if (prev != desired) {
+            group->is_barrier = desired;
+        }
+    }
+    return prev;
+#endif 
 }
 
 static inline ucg_plan_t* ucg_group_select_plan(ucg_group_t *group, const ucg_plan_params_t *params)

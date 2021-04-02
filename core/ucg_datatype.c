@@ -36,10 +36,10 @@ uint64_t ucg_dt_size(ucg_datatype_t *dt)
     return g_dt_size[id];
 }
 
-ucg_dt_state_t* ucg_dt_pack_state(ucg_datatype_t *dt, void *buffer, uint32_t count)
+ucg_dt_state_t* ucg_dt_pack_state(ucg_datatype_t *dt, const void *buffer, uint32_t count)
 {
     if (dt->id == UCG_DT_TYPE_USER_DEFINED) { 
-        return ucg_rte_dt_state(dt, buffer, count, 1);
+        return ucg_rte_dt_pack_state(dt, buffer, count);
     }
     // all builtin datatype is contig
     return NULL;
@@ -48,7 +48,7 @@ ucg_dt_state_t* ucg_dt_pack_state(ucg_datatype_t *dt, void *buffer, uint32_t cou
 ucg_dt_state_t* ucg_dt_unpack_state(ucg_datatype_t *dt, void *buffer, uint32_t count)
 {
     if (dt->id == UCG_DT_TYPE_USER_DEFINED) { 
-        return ucg_rte_dt_state(dt, buffer, count, 0);
+        return ucg_rte_dt_unpack_state(dt, buffer, count);
     }
     // all builtin datatype is contig
     return NULL;

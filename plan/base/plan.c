@@ -159,6 +159,85 @@ void ucg_plan_release_actions(ucg_plan_t *plan)
 }
 
 /*****************************************************************************
+ *                    Part related to non-contig datatype
+ *****************************************************************************/
+static ucs_status_t ucg_plan_empty_prepare_dt_state(ucg_plan_t *plan)
+{
+    return UCS_OK;
+}
+
+static ucs_status_t ucg_plan_bcast_prepare_dt_state(ucg_plan_t *plan)
+{
+    ucg_plan_bcast_t *bcast_plan = ucs_derived_of(plan, ucg_plan_bcast_t);
+    ucg_plan_bcast_params_t *params = &bcast_plan->params;
+    if (ucg_dt_is_contig(params->dtype)) {
+        return UCS_OK;
+    }
+
+    ucs_status_t status;
+    if ( params->super.members.self == params->root) {
+        // I'm root, I need to pack the data to sendbuf.
+        plan->dt.pack_state = ucg_dt_pack_state(params->dtype, params->buffer, params->count);
+        status = plan->dt.pack_state != NULL ? UCS_OK : UCS_ERR_NO_RESOURCE;
+    } else {
+        // I'm not root, I need to unpack the incoming data to recvbuf.
+        plan->dt.unpack_state = ucg_dt_unpack_state(params->dtype, params->buffer, params->count);
+        status = plan->dt.unpack_state != NULL ? UCS_OK : UCS_ERR_NO_RESOURCE;
+    }
+
+    return status;
+}
+
+static ucs_status_t ucg_plan_allreduce_prepare_dt_state(ucg_plan_t *plan)
+{
+    ucg_plan_allreduce_t *allreduce_plan = ucs_derived_of(plan, ucg_plan_allreduce_t);
+    ucg_plan_allreduce_params_t *params = &allreduce_plan->params;
+    if (ucg_dt_is_contig(params->dtype)) {
+        return UCS_OK;
+    }
+    plan->dt.pack_state = ucg_dt_pack_state(params->dtype, params->sendbuf, params->count);
+    if (plan->dt.pack_state == NULL) {
+        return UCS_ERR_NO_RESOURCE;
+    }
+    plan->dt.unpack_state = ucg_dt_unpack_state(params->dtype, params->recvbuf, params->count);
+    if (plan->dt.unpack_state == NULL) {
+        ucg_dt_state_finish(plan->dt.pack_state);
+        return UCS_ERR_NO_RESOURCE;
+    }
+    return UCS_OK;
+}
+
+typedef ucs_status_t (*ucg_plan_prepare_dt_state_func_t)(ucg_plan_t *plan);
+static ucg_plan_prepare_dt_state_func_t g_dt_state_prepare[] = {
+    [UCG_PLAN_TYPE_BCAST] = ucg_plan_bcast_prepare_dt_state,
+    [UCG_PLAN_TYPE_ALLREDUCE] = ucg_plan_allreduce_prepare_dt_state,
+    [UCG_PLAN_TYPE_BARRIER] = ucg_plan_empty_prepare_dt_state,
+};
+static ucs_status_t ucg_plan_prepare_dt_state(ucg_plan_t *plan)
+{
+    ucg_plan_type_t type = plan->core->id.type;
+    ucs_assert(type < sizeof(g_dt_state_prepare) / sizeof(ucg_plan_prepare_dt_state_func_t));
+    plan->dt.pack_state = NULL;
+    plan->dt.unpack_state = NULL;
+    g_dt_state_prepare[type](plan);
+    return UCS_OK;
+}
+
+static void ucg_plan_release_dt_state(ucg_plan_t *plan)
+{
+    if (plan->dt.pack_state != NULL) {
+        ucg_dt_state_finish(plan->dt.pack_state);
+        plan->dt.pack_state = NULL;
+    }
+
+    if (plan->dt.unpack_state != NULL) {
+        ucg_dt_state_finish(plan->dt.unpack_state);
+        plan->dt.unpack_state = NULL;
+    }
+
+    return;
+}
+/*****************************************************************************
  *                    Part related to plan
  *****************************************************************************/
 KHASH_MAP_INIT_INT64(plan, ucg_plan_t*);
@@ -273,30 +352,46 @@ ucg_plan_t* ucg_plan_clone(ucg_plan_t *plan, const ucg_config_t *config,
     UCG_THREAD_SAFE_LEAVE(&g_plan_mgr.lock);
     if (self == NULL) {
         ucs_error("Failed to allocate plan.");
-        return NULL;
+        goto err;
     }
     // Initialize super class object.
     self->core = plan->core;
     self->refcount = 1;
     ucs_list_head_init(&self->action_list);
+    
     self->dt.pack_state = NULL;
     self->dt.unpack_state = NULL;
     // Save parameters to basic collective plan.
     ucs_status_t status = ucg_plan_clone_params(self, params);
     if (status != UCS_OK) {
         ucs_error("Failed to clone params, %s", ucs_status_string(status));
-        return NULL;
+        goto err_put_plan;
     }
-    
+
+    status = ucg_plan_prepare_dt_state(self);
+    if (status != UCS_OK) {
+        ucs_error("Failed to prepare dt state, %s", ucs_status_string(status));
+        goto err_free_params;
+    }
+
     // Construct derived class object.
     ucs_assert(advice == UCG_PLAN_CLONE_ADVICE_SIMILAR || advice == UCG_PLAN_CLONE_ADVICE_UNEQUAL);
     ucg_plan_t *other = advice == UCG_PLAN_CLONE_ADVICE_SIMILAR ? plan : NULL;
     status = ucg_plan_constructor(self, other, config);
     if (status != UCS_OK) {
-        ucs_mpool_put(self);
-        return NULL;
+        goto err_free_dt_state;
     }
     return self;
+err_free_dt_state:
+    ucg_plan_release_dt_state(self);
+err_free_params:
+    ucg_plan_free_params(plan);
+err_put_plan:
+    UCG_THREAD_SAFE_ENTER(&g_plan_mgr.lock);
+    ucs_mpool_put(self);
+    UCG_THREAD_SAFE_LEAVE(&g_plan_mgr.lock);
+err:
+    return NULL;
 }
 
 ucg_plan_t* ucg_plan_create(const ucg_plan_id_t *id, const ucg_config_t *config, 
@@ -320,21 +415,30 @@ void ucg_plan_free(ucg_plan_t *plan)
     }
 
     ucg_plan_destructor(plan);
+    ucg_plan_release_dt_state(plan);
     ucg_plan_free_params(plan);
 
     UCG_THREAD_SAFE_ENTER(&g_plan_mgr.lock);
     ucs_mpool_put(plan);
     UCG_THREAD_SAFE_LEAVE(&g_plan_mgr.lock);
 
-    if (plan->dt.pack_state != NULL) {
-        ucg_dt_state_finish(plan->dt.pack_state);
-        plan->dt.pack_state = NULL;
-    }
+    return;
+}
 
-    if (plan->dt.unpack_state != NULL) {
-        ucg_dt_state_finish(plan->dt.unpack_state);
-        plan->dt.unpack_state = NULL;
-    }
+ucg_plan_handle_t ucg_plan_open(ucg_plan_t *plan, ucg_group_id_t gid, uint32_t rid)
+{
+    ucg_plan_handle_t handle = 0;
+
+    return handle;
+}
+
+ucs_status_t ucg_plan_execute(ucg_plan_handle_t handle)
+{
+    return UCS_INPROGRESS;
+}
+
+void ucg_plan_close(ucg_plan_handle_t handle)
+{
     return;
 }
 
@@ -351,6 +455,11 @@ void ucg_plan_print(ucg_plan_t *plan, FILE *stream)
     }
     fprintf(stream, "\n");
     return;
+}
+
+ucg_plan_type_t ucg_plan_type(ucg_plan_t *plan)
+{
+    return plan->core->id.type;
 }
 
 UCG_RTE_INNER_DEFINE(UCG_RTE_RESOURCE_TYPE_PLAN, ucg_plan_global_init, 

@@ -135,7 +135,7 @@ typedef int (*ucg_mpi_dt_size_func_t)(void *dtype, uint64_t *size);
  * @param [in] count Number of elements to pack into the buffer.
  * @return A state that is passed later to pack().
  */
-typedef void* (*ucg_mpi_dt_start_pack_func_t)(void *dtype, void *buffer, uint64_t count);
+typedef void* (*ucg_mpi_dt_start_pack_func_t)(void *dtype, const void *buffer, uint64_t count);
 
 /**
  * @ingroup UCG_RTE_MPI

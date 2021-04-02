@@ -7,24 +7,29 @@
 #define UCG_REQUEST_H_
 
 #include "ucg_group.h"
-#include "ucg_channel.h"
 #include <ucg/plan/api.h>
 
-typedef enum {
-    UCG_REQUEST_STATE_INIT,
-    UCG_REQUEST_STATE_START,
-    UCG_REQUEST_STATE_CANNELED,
+/**
+ * @ingroup UCG_REQUEST
+ * @brief Request state.
+ */
+typedef enum ucg_request_state {
+    UCG_REQUEST_STATE_INITED,
+    UCG_REQUEST_STATE_PENDING,
+    UCG_REQUEST_STATE_OUTSTANDING,
+    UCG_REQUEST_STATE_CANCELED,
     UCG_REQUEST_STATE_COMPLETED,
 } ucg_request_state_t;
 
 typedef struct ucg_request {
-    ucs_status_t status; /* Completion status. */
+    ucs_status_t comp_status; /* Completion status. */
     ucg_request_state_t state;
 
     ucg_group_t *group;
-
     ucg_plan_t *plan;
-    ucg_channel_t *channel; 
+    uint8_t is_barrier;
+
+    ucg_plan_handle_t handle;
 } ucg_request_t;
 
 #endif

@@ -65,7 +65,9 @@ uint32_t ucg_rte_dt_is_contig(ucg_datatype_t *dt);
 
 uint64_t ucg_rte_dt_size(ucg_datatype_t *dt);
 
-void* ucg_rte_dt_state(ucg_datatype_t *dt, void *buffer, uint32_t count, int is_pack);
+void* ucg_rte_dt_pack_state(ucg_datatype_t *dt, const void *buffer, uint32_t count);
+
+void* ucg_rte_dt_unpack_state(ucg_datatype_t *dt, void *buffer, uint32_t count);
 
 void ucg_rte_dt_state_finish(void *state);
 
